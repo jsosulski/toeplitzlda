@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "toeplitzlda"
+version = "0.1.0"
+description = ""
+authors = ["Jan Sosulski <mail@jan-sosulski.de>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+mne = "^0.24.1"
+numpy = "^1.22.1"
+pandas = "^1.4.0"
+blockmatrix = "^0.1.0"
+sklearn = "^0.0"
+moabb = "^0.4.4"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
