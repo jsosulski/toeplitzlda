@@ -222,6 +222,17 @@ else:
 epo_cache_root = Path("/") / "tmp" / ds
 os.makedirs(epo_cache_root, exist_ok=True)
 
+suffix = "_jump" if use_jump else ""
+suffix += "_base" if use_base else ""
+suffix += "_chdrop" if use_chdrop else ""
+
+basedir = (
+    Path.home() / f"results_usup" / f"{lowpass}hz_lowpass_{sr}Hz_sr_{ntimes}tD{suffix}"
+)
+os.makedirs(
+    basedir,
+    exist_ok=True,
+)
 
 def get_llp_epochs(sub, block, use_cache=True):
     dataset.subject_list = [sub]
@@ -378,15 +389,5 @@ df["letter_memory"] = letter_memory
 df["lowpass"] = lowpass
 df["early_stop_sim"] = enable_early_stopping_simulation
 df["postfix_sim"] = enable_calculate_postfix
-suffix = "_jump" if use_jump else ""
-suffix += "_base" if use_base else ""
-suffix += "_chdrop" if use_chdrop else ""
-basedir = (
-    f"/home/jan/bci_data/results/usup/{lowpass}hz_lowpass_{sr}Hz_sr_{ntimes}tD{suffix}/"
-)
-os.makedirs(
-    basedir,
-    exist_ok=True,
-)
 csv_name = f"{basedir}{ds}_usup_toeplitz.csv"
 df.to_csv(csv_name)

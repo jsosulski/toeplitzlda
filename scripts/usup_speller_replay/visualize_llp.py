@@ -6,18 +6,14 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.backends.backend_pdf import PdfPages
-from vispp.comparative.strips import plot_matched
-from vispp.io import better_savefig
 
 
 plt.rcParams["figure.dpi"] = 200
 
 sns.set_context("paper")
 sns.set_style("whitegrid")
-# figure_path = Path.home() / "bci_data" / "results" / "usup" / "plots"
-figure_path = Path.home() / "papers" / "papers_21_toeplitz" / "figures" / "usup"
-# figure_path = Path.home() / "test"
-ds = "both"
+figure_path = Path.home() / "results_usup" / "plots"
+ds = "both"  # LLP, Mix or both
 # nlet = 63 if ds == "LLP" else 35
 nlet = 35
 max_let = 189 if ds == "LLP" else 105
@@ -44,27 +40,14 @@ def savefig(fig, name, prefix=None, format="pdf", dpi=200):
     if prefix is None:
         prefix = f"{ds}_{lowpass_freq_str}"
     figfile = figure_path / f"{prefix}_{name}.{format}"
-    better_savefig(fig, figfile, format=format, dpi=dpi)
+    fig.savefig(figfile, dpi=dpi)
 
-
-# df = pd.read_csv(f"/home/jan/bci_data/results/usup/{ds}_usup_toeplitz.csv")
-
-# lowpass_sr = [
-#     # (16, 40),
-#     # (16, 100),
-#     (8, 20),
-#     (8, 40),
-#     (8, 100),
-# ]
 
 paths = list(
-    (Path.home() / "bci_data" / "results" / "usup").glob(f"{lowpass_freq_str}*")
+    (Path.home() / "results_usup").glob(f"{lowpass_freq_str}*")
 )
 fs_onecol = (4.5, 4.2)
 fs_twocol = (9, 4.2)
-
-# %%
-# dfs = [pd.read_csv(f"/home/jan/bci_data/results/usup/{lp}hz_lowpass_{sr}Hz_sr/{ds}_usup_toeplitz.csv") for lp, sr in lowpass_sr]
 
 
 dfs = []
@@ -98,6 +81,8 @@ all_df["Feature dimension"] = all_df.ntime_features * 31
 all_df["AUC"] = all_df.auc
 # Original LLP Code removed Fp1 and Fp2
 all_df.loc[all_df["ntime_features"] == 6, "Feature dimension"] -= 2 * 6
+all_df = all_df.infer_objects()
+
 num_evaluated_features = len(all_df["ntime_features"].unique())
 per_block = (
     all_df.groupby(["block", "subject", "Classifier", "lowpass", "$N_t$"])
@@ -116,76 +101,6 @@ summary["$N_t$ / Feature dimension"] += " / " + summary["Feature dimension"].ast
 
 cp = sns.color_palette("viridis", num_evaluated_features - 1)
 cp.insert(0, (1, 0, 0))
-#%% Number of Wrong letters
-fig, axes = plt.subplots(1, 2, sharey="all", figsize=fs_twocol)
-ax = axes[0]
-xorder = list(summary["$N_t$ / Feature dimension"].unique())
-
-if ds == "LLP":
-    subj_order = [5, 8, 3, 1, 9, 11, 4, 12, 6, 0, 2, 7, 10]
-elif ds == "Mix":
-    subj_order = [1, 0, 3, 2, 5, 4, 11, 7, 8, 10, 6, 9]
-else:
-    # fmt: off
-    subj_order = [10, 22, 7, 23, 21, 24, 19, 17, 4, 20, 0, 12, 13, 11, 15, 16, 8, 14, 6, 18, 5, 3, 2, 1, 9,]
-    # fmt: on
-# plot_matched(ax=ax, data=summary, x="ntime_features", y="correct")
-summary["Wrong letters"] = 3 * nlet * (1 - summary.correct)
-_, lg = plot_matched(
-    ax=ax,
-    # data=summary.groupby(["Classifier", "$N_t$ / Feature dimension"]).mean().reset_index(),#.loc[summary.Classifier == "ToeplitzLDA"],
-    data=summary.loc[summary.Classifier == "sLDA"],
-    # data=summary,
-    x="$N_t$ / Feature dimension",
-    y="correct",
-    # x_match_sort="6 / 174",
-    sort_idx=subj_order,
-    match_col="subject",
-    x_order=xorder,
-    # sort_marker="★",
-    cp=cp,
-)
-# ax.set_ylabel(f"Wrong letters per subject (out of {max_let})")
-ax.set_ylabel(f"Correct letter ratio")
-if plot_titles:
-    ax.set_title("sLDA")
-ax = axes[1]
-_, lg = plot_matched(
-    ax=ax,
-    # data=summary.groupby(["Classifier", "$N_t$ / Feature dimension"]).mean().reset_index(),#.loc[summary.Classifier == "ToeplitzLDA"],
-    data=summary.loc[summary.Classifier == "ToeplitzLDA"],
-    # data=summary,
-    x="$N_t$ / Feature dimension",
-    y="correct",
-    x_match_sort="14 / 434",
-    sort_idx=subj_order,
-    match_col="subject",
-    x_order=xorder,
-    # sort_marker="★",
-    cp=cp,
-)
-
-# ax.legend(*lg, loc="best")
-# ax.set_ylim(None, 1)
-ax.annotate(
-    strikethrough("A1, A2"),
-    (-0.2, 12),
-    size=8,
-    color="red",
-    fontweight="bold",
-    ha="center",
-)  # , arrowprops=dict(facecolor='black'))
-# ax.set_xlabel("$N_t$ / Feature dimension")
-ax.set_ylabel("")
-if plot_titles:
-    ax.set_title("ToeplitzLDA")
-    fig.suptitle("Speller performance, based on dimensions")
-xtl = ax.get_xticklabels()
-for l, c in zip(xtl, cp):
-    l.set_color(c)
-fig.tight_layout()
-savefig(fig, "wrong_letters_for_dimensions")
-plt.show()
 
 # %% Correct ratio
 fig, ax = plt.subplots(1, 1, figsize=fs_onecol)
@@ -223,6 +138,7 @@ if colored_labels:
 fig.tight_layout()
 savefig(fig, "average_for_dimensions")
 plt.show()
+
 # %% Learning curves
 fig, ax = plt.subplots(1, 1, figsize=fs_onecol)
 summary = (
@@ -546,143 +462,3 @@ plt.show()
 
 
 print(asdf.groupby("clf").median()[["wrong_letters", "correct_ratio", "error_rate"]])
-# # %%
-# sns.set_style("whitegrid")
-#
-# wrong_penalty = 69  # 2*68
-# wrong_penalty_target = 17  # 2*68
-# show_targets = False  # if this is true, show only targets instead of epochs
-#
-# for only_perfect_subjects in [True, False]:
-#     df_stop_sim = pd.read_csv(
-#         f"/home/jan/bci_data/results/usup_earlystopping/8hz_lowpass_20Hz_sr_14tD_PF/LLP_usup_toeplitz.csv"
-#     )
-#
-#     df_stop_sim.loc[df_stop_sim.earliest_correct.isna(), "earliest_correct"] = wrong_penalty
-#     df_stop_sim.loc[df_stop_sim.nth_letter == 1, "earliest_correct"] = np.nan
-#     df_stop_sim.loc[
-#         df_stop_sim.num_target_flashes.isna(), "num_target_flashes"
-#     ] = wrong_penalty_target
-#     df_stop_sim.loc[df_stop_sim.nth_letter == 1, "num_target_flashes"] = np.nan
-#
-#     df_stop_sim = (
-#         df_stop_sim.loc[df_stop_sim.subject.isin([1, 2, 3, 4, 5, 6, 7, 9, 10, 12, 13])]
-#         if only_perfect_subjects
-#         else df_stop_sim
-#     )
-#     df_stop_sim["earliest_possible_correct"] = (
-#         df_stop_sim.earliest_correct - df_stop_sim.first_valid
-#     )
-#     df_stop_sim["earliest_possible_num_targets"] = (
-#         df_stop_sim.num_target_flashes - df_stop_sim.mandatory_target_flashes
-#     )
-#     df_stop_sim["Correct after e-th epoch"] = df_stop_sim.earliest_correct
-#     df_stop_sim["N-th letter"] = df_stop_sim.nth_letter
-#     df_stop_sim["subblo"] = df_stop_sim.subject.astype(str) + "-" + df_stop_sim.block.astype(str)
-#
-#     fig, axes = plt.subplots(1, 2, figsize=(9, 4.2), sharey="all", sharex="all")
-#     ax = axes[1]
-#     sns.lineplot(
-#         ax=ax,
-#         data=df_stop_sim.loc[df_stop_sim.clf == "slda"],
-#         x="N-th letter",
-#         y="mandatory_target_flashes" if show_targets else "first_valid",
-#         color="black",
-#         label="Minimum possible",
-#         ci=None,
-#     )
-#     ax.axhline(16 if show_targets else 68, c="k", linestyle="--", label="Full trial")
-#     sns.scatterplot(
-#         ax=ax,
-#         data=df_stop_sim.loc[df_stop_sim.clf == "slda"],
-#         x="N-th letter",
-#         y="num_target_flashes" if show_targets else "Correct after e-th epoch",
-#         style="subblo",
-#         color=sns.color_palette()[1],
-#         alpha=0.15,
-#         legend=None,
-#     )
-#     sns.lineplot(
-#         ax=ax,
-#         data=df_stop_sim.loc[df_stop_sim.clf == "slda"],
-#         x="N-th letter",
-#         y="num_target_flashes" if show_targets else "Correct after e-th epoch",
-#         color=sns.color_palette()[1],
-#         linestyle="--",
-#         ci=None,
-#         label="Mean sLDA",
-#     )
-#     slda_leg = ax.get_legend_handles_labels()
-#     # ax.legend(["sLDA", "Minimal epochs possible", "Full trial"], loc="upper right", framealpha=1)
-#     ax.set_ylim(0, 20 if show_targets else 75)
-#     ax.legend("", frameon=False)
-#     ax = axes[0]
-#     sns.lineplot(
-#         ax=ax,
-#         data=df_stop_sim.loc[df_stop_sim.clf == "toep_lda"],
-#         x="N-th letter",
-#         y="mandatory_target_flashes" if show_targets else "first_valid",
-#         color="black",
-#         label="Minimum possible",
-#         ci=None,
-#     )
-#     ax.axhline(16 if show_targets else 68, c="k", linestyle="--", label="Full trial")
-#     sns.scatterplot(
-#         ax=ax,
-#         data=df_stop_sim.loc[df_stop_sim.clf == "toep_lda"],
-#         x="N-th letter",
-#         y="num_target_flashes" if show_targets else "Correct after e-th epoch",
-#         style="subblo",
-#         color=sns.color_palette()[0],
-#         alpha=0.15,
-#         legend=None,
-#     )
-#     sns.lineplot(
-#         ax=ax,
-#         data=df_stop_sim.loc[df_stop_sim.clf == "toep_lda"],
-#         x="N-th letter",
-#         y="num_target_flashes" if show_targets else "Correct after e-th epoch",
-#         color=sns.color_palette()[0],
-#         linestyle="--",
-#         ci=None,
-#         label="Mean ToeplitzLDA",
-#     )
-#     test = (
-#         df_stop_sim.loc[df_stop_sim.clf == "toep_lda"].groupby("N-th letter").quantile((0.1, 0.9))
-#     )
-#
-#     # ax.legend(["Minimal epochs needed", "Full trial", "ToeplitzLDA"], loc="upper right", framealpha=1)
-#     toep_leg = ax.get_legend_handles_labels()
-#     mrg_h = []
-#     mrg_l = []
-#
-#     for h, l in zip(*toep_leg):
-#         if l not in mrg_l:
-#             mrg_h.append(h)
-#             mrg_l.append(l)
-#
-#     for h, l in zip(*slda_leg):
-#         if l not in mrg_l:
-#             mrg_h.append(h)
-#             mrg_l.append(l)
-#
-#     ax.set_ylim(0, 20 if show_targets else 75)
-#     if show_targets:
-#         ax.set_ylabel("Correct output did not change after n-th target flash")
-#     else:
-#         ax.set_ylabel("Correct output did not change after e-th epoch")
-#     ax.legend("", frameon=False)
-#     fig.legend(mrg_h, mrg_l, loc="upper center", ncol=4)
-#     fig.text(0.45, 0.02, "Trained on up to N-1")
-#     subject_note = (
-#         ", without subject 11 (many wrong letters)" if only_perfect_subjects else ", all subjects"
-#     )
-#     # fig.suptitle(
-#     #     "Oracle/fake early stopping: since which epoch was the classification correct?"
-#     #     f"\nWrong letter penalty: {wrong_penalty} epochs{subject_note}"
-#     # )
-#     fig.tight_layout()
-#     savefig(
-#         fig, f"stop_simulation_{'without_subject_11' if only_perfect_subjects else 'all_subjects'}"
-#     )
-#     plt.show()
