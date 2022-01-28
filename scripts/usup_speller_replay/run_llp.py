@@ -159,7 +159,7 @@ def predicted_letter_over_trial(epo, pred, ax=None, gt=None):
 
 # %%
 # Choose dataset here
-ds = "Mix"
+ds = "LLP"
 
 if ds == "LLP":
     dataset = VisualMatrixSpellerLLPDataset()
@@ -362,6 +362,8 @@ for sub in range(1, 1 + n_subs):
                     mandatory_target_flashes=mandatory_target_flashes,
                     auc=auc,
                 )
+                # df = pd.concat([df, row], ignore_index=True)
+                # This cause FutureWarning
                 df = df.append(row, ignore_index=True)
 
             if not np.all(np.array(list(pred_letter.values())) == gt_letter):
