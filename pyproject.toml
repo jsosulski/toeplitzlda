@@ -11,9 +11,8 @@ numpy = "^1.22.1"
 pandas = "^1.4.0"
 blockmatrix = "^0.1.0"
 scikit-learn = "^1.0"
-moabb = {git = "https://github.com/jsosulski/moabb.git", rev = "customization_dev"}
-spot = {path = "../spot"}
-tdlda = {git = "https://github.com/jsosulski/time-decoupled-lda"}
+moabb = "^0.4.4"
+
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

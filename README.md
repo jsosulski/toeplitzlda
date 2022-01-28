@@ -6,7 +6,11 @@ Code for the ToeplitzLDA classifier proposed in (TODO insert reference).
 The classifier conforms sklearn and can be used as a drop-in replacement for other LDA classifiers.
 For usage refer to the learning from label proportions (LLP) example or the benchmark scripts.
 
+Note we used Ubuntu 20.04 with python3.8 to generate our results.
+
 ## Setup
+
+We use a fortran compiler to provide speedups for solving linear equation systems. If you are on ubuntu you can install `fortran-compiler` which finds the correct compiler for your system.
 
 We use `poetry` for dependency management. If you have it installed you can simply use `poetry install` to set up the virtual environment with all dependencies.
 
