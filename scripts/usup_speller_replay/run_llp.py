@@ -8,11 +8,15 @@ import pandas as pd
 from blockmatrix import linear_taper
 from sklearn.metrics import roc_auc_score
 from sklearn.pipeline import make_pipeline
+from toeplitzlda.usup_replay.llp import LearningFromLabelProportions
+
+from toeplitzlda.usup_replay.visual_speller import (
+    VisualMatrixSpellerLLPDataset,
+    VisualMatrixSpellerMixDataset,
+)
 
 from toeplitzlda.classification.bbci_lda import EpochsVectorizer
-from toeplitzlda.usup_replay.llp import LearningFromLabelProportions
-from toeplitzlda.usup_replay.visual_speller import VisualMatrixSpellerLLPDataset, \
-    VisualMatrixSpellerMixDataset
+mne.set_log_level("INFO")
 
 np.seterr(divide="ignore")  # this does nothing for some reason
 # We get a division by 0 warning for calculating theoretical classifier sureness,
@@ -134,7 +138,9 @@ def predicted_letter_over_trial(epo, pred, ax=None, gt=None):
     t_let_seq = letter_sequencing[spellable.index(gt)]
     if correct:
         earliest_correct = (
-            1 + len(epo) - np.where(~(high_score_history == high_score_history[-1])[::-1])[0][0]
+            1
+            + len(epo)
+            - np.where(~(high_score_history == high_score_history[-1])[::-1])[0][0]
         )
         num_target_flashes = int(t_let_seq[:earliest_correct].sum())
     else:
@@ -142,13 +148,18 @@ def predicted_letter_over_trial(epo, pred, ax=None, gt=None):
         num_target_flashes = np.nan
     mandatory_target_flashes = int(t_let_seq[:first_valid].sum())
 
-
-    return pred_letter, earliest_correct, first_valid, num_target_flashes, mandatory_target_flashes
+    return (
+        pred_letter,
+        earliest_correct,
+        first_valid,
+        num_target_flashes,
+        mandatory_target_flashes,
+    )
 
 
 # %%
 # Choose dataset here
-ds = "LLP"
+ds = "Mix"
 
 if ds == "LLP":
     dataset = VisualMatrixSpellerLLPDataset()
@@ -222,7 +233,9 @@ def get_llp_epochs(sub, block, use_cache=True):
         print("Preprocessing data.")
         try:
             # ATTENTION: TODO Unify Lowpass handling -> also in select_ival and n_times param
-            epochs = dataset.load_epochs(block_nrs=[block], fband=[0.5, lowpass], sampling_rate=sr)
+            epochs = dataset.load_epochs(
+                block_nrs=[block], fband=[0.5, lowpass], sampling_rate=sr
+            )
             if use_base:
                 epochs.apply_baseline((-0.2, 0))
             if use_chdrop:
@@ -231,15 +244,15 @@ def get_llp_epochs(sub, block, use_cache=True):
             if use_cache:
                 epochs.save(epo_file)
             return epochs
-        except:  # TODO specify what to catch
-            pass
+        except Exception as e:  # TODO specify what to catch
+            raise e
 
 
 for sub in range(1, 1 + n_subs):
     for block in range(1, 4):
         print(f"Subject {sub}, block {block}")
         print(f" Loading Data")
-        epochs = get_llp_epochs(sub, block)
+        epochs = get_llp_epochs(sub, block, use_cache=False)
         if epochs is None:
             continue
         print(f" Starting evaluation")
@@ -252,7 +265,9 @@ for sub in range(1, 1 + n_subs):
             [0.38, 0.53],
             [0.53, 0.70],
         ]
-        vec_args = dict(jumping_mean_ivals=jm) if use_jump else dict(select_ival=[0.05, 0.70])
+        vec_args = (
+            dict(jumping_mean_ivals=jm) if use_jump else dict(select_ival=[0.05, 0.70])
+        )
         if use_each_best:
             vec_args_slda = dict(jumping_mean_ivals=jm)
             vec_args_toep = dict(select_ival=[0.05, 0.70])
@@ -326,9 +341,7 @@ for sub in range(1, 1 + n_subs):
                     first_valid,
                     num_target_flashes,
                     mandatory_target_flashes,
-                ) = predicted_letter_over_trial(
-                    cur_X, pred, gt=gt_letter
-                )
+                ) = predicted_letter_over_trial(cur_X, pred, gt=gt_letter)
                 if let_i == 1:
                     earliest_correct = np.min([68, earliest_correct])
                 if pred_letter[ckey] == gt_letter:
@@ -366,7 +379,9 @@ df["postfix_sim"] = enable_calculate_postfix
 suffix = "_jump" if use_jump else ""
 suffix += "_base" if use_base else ""
 suffix += "_chdrop" if use_chdrop else ""
-basedir = f"/home/jan/bci_data/results/usup/{lowpass}hz_lowpass_{sr}Hz_sr_{ntimes}tD{suffix}/"
+basedir = (
+    f"/home/jan/bci_data/results/usup/{lowpass}hz_lowpass_{sr}Hz_sr_{ntimes}tD{suffix}/"
+)
 os.makedirs(
     basedir,
     exist_ok=True,

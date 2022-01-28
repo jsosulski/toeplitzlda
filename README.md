@@ -6,6 +6,12 @@ Code for the ToeplitzLDA classifier proposed in (TODO insert reference).
 The classifier conforms sklearn and can be used as a drop-in replacement for other LDA classifiers.
 For usage refer to the learning from label proportions (LLP) example or the benchmark scripts.
 
+## Setup
+
+We use `poetry` for dependency management. If you have it installed you can simply use `poetry install` to set up the virtual environment with all dependencies.
+
+If setup does not work for you, please open an issue. We cannot provide support for different platforms, but could provide a singularity image.
+
 ## Learning from label proportions
 
 Use the run_llp.py script to apply ToeplitzLDA in the LLP scenario and create results file that can then be visualized using visualize_llp.py to create the plots shown in the publication at TODO.

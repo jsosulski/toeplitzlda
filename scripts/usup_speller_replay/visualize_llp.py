@@ -57,7 +57,9 @@ def savefig(fig, name, prefix=None, format="pdf", dpi=200):
 #     (8, 100),
 # ]
 
-paths = list((Path.home() / "bci_data" / "results" / "usup").glob(f"{lowpass_freq_str}*"))
+paths = list(
+    (Path.home() / "bci_data" / "results" / "usup").glob(f"{lowpass_freq_str}*")
+)
 fs_onecol = (4.5, 4.2)
 fs_twocol = (9, 4.2)
 
@@ -81,7 +83,9 @@ for datset in dss:
         df["use_base"] = "_base" in str(p)
         df["use_chdrop"] = "_chdrop" in str(p)
         if ds == "both":
-            df["subject"] = ("A" if datset == "LLP" else "B") + df.subject.astype(str).str.zfill(2)
+            df["subject"] = ("A" if datset == "LLP" else "B") + df.subject.astype(
+                str
+            ).str.zfill(2)
             df["max_let"] = 189 if datset == "LLP" else 105
         else:
             df["max_let"] = max_let
@@ -96,13 +100,19 @@ all_df["AUC"] = all_df.auc
 all_df.loc[all_df["ntime_features"] == 6, "Feature dimension"] -= 2 * 6
 num_evaluated_features = len(all_df["ntime_features"].unique())
 per_block = (
-    all_df.groupby(["block", "subject", "Classifier", "lowpass", "$N_t$"]).mean().reset_index()
+    all_df.groupby(["block", "subject", "Classifier", "lowpass", "$N_t$"])
+    .mean()
+    .reset_index()
 )
-summary = per_block.groupby(["subject", "Classifier", "lowpass", "$N_t$"]).mean().reset_index()
+summary = (
+    per_block.groupby(["subject", "Classifier", "lowpass", "$N_t$"])
+    .mean()
+    .reset_index()
+)
 summary["$N_t$ / Feature dimension"] = summary["$N_t$"].astype(int).astype(str)
-summary["$N_t$ / Feature dimension"] += " / " + summary["Feature dimension"].astype(int).astype(
-    str
-)
+summary["$N_t$ / Feature dimension"] += " / " + summary["Feature dimension"].astype(
+    int
+).astype(str)
 
 cp = sns.color_palette("viridis", num_evaluated_features - 1)
 cp.insert(0, (1, 0, 0))
@@ -158,7 +168,12 @@ _, lg = plot_matched(
 # ax.legend(*lg, loc="best")
 # ax.set_ylim(None, 1)
 ax.annotate(
-    strikethrough("A1, A2"), (-0.2, 12), size=8, color="red", fontweight="bold", ha="center"
+    strikethrough("A1, A2"),
+    (-0.2, 12),
+    size=8,
+    color="red",
+    fontweight="bold",
+    ha="center",
 )  # , arrowprops=dict(facecolor='black'))
 # ax.set_xlabel("$N_t$ / Feature dimension")
 ax.set_ylabel("")
@@ -189,7 +204,12 @@ g = sns.boxplot(
 ax.legend(loc="best")
 ax.set_ylim(None, 1)
 ax.annotate(
-    strikethrough("A1, A2"), (-0.2, 1.005), size=7.9, color="red", fontweight="bold", ha="center"
+    strikethrough("A1, A2"),
+    (-0.2, 1.005),
+    size=7.9,
+    color="red",
+    fontweight="bold",
+    ha="center",
 )  # , arrowprops=dict(facecolor='black'))
 # ax.set_xlabel("$N_t$ / Feature dimension")
 ax.set_ylabel("Ratio of correct letters")
@@ -205,7 +225,11 @@ savefig(fig, "average_for_dimensions")
 plt.show()
 # %% Learning curves
 fig, ax = plt.subplots(1, 1, figsize=fs_onecol)
-summary = all_df.groupby(["Classifier", "nth_letter", "lowpass", "$N_t$"]).mean().reset_index()
+summary = (
+    all_df.groupby(["Classifier", "nth_letter", "lowpass", "$N_t$"])
+    .mean()
+    .reset_index()
+)
 sns.lineplot(
     ax=ax,
     data=summary,
@@ -230,7 +254,11 @@ plt.show()
 
 # %% Learning curves
 fig, ax = plt.subplots(1, 1, figsize=fs_onecol)
-summary = all_df.groupby(["Classifier", "nth_letter", "lowpass", "$N_t$"]).mean().reset_index()
+summary = (
+    all_df.groupby(["Classifier", "nth_letter", "lowpass", "$N_t$"])
+    .mean()
+    .reset_index()
+)
 # cp = sns.color_palette("viridis", 4)
 # cp[-1] = (1, 0, 0)
 sns.lineplot(
@@ -302,14 +330,43 @@ plt.show()
 # plt.show()
 hline_pos = [3] * nsub
 if ds in ["LLP", "both"]:
-    hline_pos[5] -= 1  # LLP dataset is missing block 2 of sub 6 due to optical marker issues
+    hline_pos[
+        5
+    ] -= 1  # LLP dataset is missing block 2 of sub 6 due to optical marker issues
 hline_pos = np.cumsum(hline_pos)
 vline_pos = [7, 14, 21, 28, 35, 42, 49, 56]
 if ds == "Mix":
     vline_pos = vline_pos[:4]
 
-yticklabel_pos_llp = [1.5, 4.5, 7.5, 10.5, 13.5, 16, 18.5, 21.5, 24.5, 27.5, 30.5, 33.5, 36.5]
-yticklabel_pos_mix = [1.5, 4.5, 7.5, 10.5, 13.5, 16.5, 19.5, 22.5, 25.5, 28.5, 31.5, 34.5]
+yticklabel_pos_llp = [
+    1.5,
+    4.5,
+    7.5,
+    10.5,
+    13.5,
+    16,
+    18.5,
+    21.5,
+    24.5,
+    27.5,
+    30.5,
+    33.5,
+    36.5,
+]
+yticklabel_pos_mix = [
+    1.5,
+    4.5,
+    7.5,
+    10.5,
+    13.5,
+    16.5,
+    19.5,
+    22.5,
+    25.5,
+    28.5,
+    31.5,
+    34.5,
+]
 if ds == "LLP":
     yticklabel_pos = yticklabel_pos_llp
 elif ds == "Mix":
@@ -327,7 +384,9 @@ for letter_limit in [nlet]:
     hm_df = rdf[["subject", "block", "nth_letter", "correct", "clf"]]
     slda_df = hm_df.loc[hm_df["clf"] == "slda"]
     slda_df = slda_df[["subject", "block", "nth_letter", "correct"]]
-    slda_df = slda_df.pivot(index=["subject", "block"], columns="nth_letter", values="correct")
+    slda_df = slda_df.pivot(
+        index=["subject", "block"], columns="nth_letter", values="correct"
+    )
     toep_lda_df = hm_df.loc[hm_df["clf"] == "toep_lda"]
     toep_lda_df = toep_lda_df[["subject", "block", "nth_letter", "correct"]]
     toep_lda_df = toep_lda_df.pivot(
@@ -418,7 +477,11 @@ gdf["wrong_letters"] = gdf["Incorrectly classified letters"]
 
 fig, ax = plt.subplots(1, 1, figsize=(16, 6))
 sns.barplot(
-    ax=ax, data=gdf, x="Subject - Block", y="Incorrectly classified letters", hue="Classifier"
+    ax=ax,
+    data=gdf,
+    x="Subject - Block",
+    y="Incorrectly classified letters",
+    hue="Classifier",
 )
 xtl = ax.get_xticklabels()
 ax.set_xticklabels(xtl, rotation=60)
@@ -429,8 +492,12 @@ reductions = []
 
 for s in gdf.subject.unique():
     cursub_df = gdf.loc[(gdf.subject == s)]
-    normal_lda_mistakes = cursub_df[(cursub_df.clf == "slda")].wrong_letters.sum().astype(int)
-    toep_lda_mistakes = cursub_df[(cursub_df.clf == "toep_lda")].wrong_letters.sum().astype(int)
+    normal_lda_mistakes = (
+        cursub_df[(cursub_df.clf == "slda")].wrong_letters.sum().astype(int)
+    )
+    toep_lda_mistakes = (
+        cursub_df[(cursub_df.clf == "toep_lda")].wrong_letters.sum().astype(int)
+    )
     max_letters = int((len(cursub_df) / 2) * (cursub_df.max_let.unique()[0] / 3))
     red = 100 - 100 * toep_lda_mistakes / normal_lda_mistakes
     print(f"Subject {s}")

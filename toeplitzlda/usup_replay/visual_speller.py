@@ -3,17 +3,19 @@ import os
 import re
 import zipfile
 from abc import ABC
+from datetime import datetime, timezone
 
 import mne
 import numpy as np
+import pandas as pd
 
 from moabb.datasets import download as dl
 from moabb.datasets.base import BaseDataset
 
 
-VSPELL_BASE_URL = "http://aphasia.placeholder123domain.de/bci-data/"
-VISUAL_SPELLER_LLP_URL = VSPELL_BASE_URL + "visual-speller-llp/"
-VISUAL_SPELLER_MIX_URL = VSPELL_BASE_URL + "visual-speller-mix/"
+VSPELL_BASE_URL = "https://zenodo.org/record/"
+VISUAL_SPELLER_LLP_URL = VSPELL_BASE_URL + "5831826/files/"
+VISUAL_SPELLER_MIX_URL = VSPELL_BASE_URL + "5831879/files/"
 OPTICAL_MARKER_CODE = 500
 VALID_LETTER_NUMBERS = []
 VALID_LETTER_NUMBERS.extend([i for i in range(201, 242 + 1)])
@@ -138,23 +140,24 @@ class _BaseVisualMatrixSpellerDataset(BaseDataset, ABC):
 
     def data_path(self, subject, path=None, force_update=False, update_path=None, verbose=None):
 
-        url = f"{self._src_url}subject{subject}.zip"
+        url = f"{self._src_url}subject{subject:02d}.zip"
         data_archive_path = dl.data_path(url, "llp")
         data_dir_extracted_path = os.path.dirname(data_archive_path)
         # else:
         #     raise ValueError(f'URL or data path must be given but both are None.')
 
-        subject_dir_path = os.path.join(data_dir_extracted_path, f"subject{subject}")
+        subject_dir_path = os.path.join(data_dir_extracted_path, f"subject{subject:02d}")
 
         data_extracted = os.path.isdir(subject_dir_path)
         if not data_extracted:
             # print('unzip', path_to_data_archive)  # TODO logging? check verbose
+            zipfile_path = glob.glob(os.path.join(data_dir_extracted_path, data_archive_path, "*.zip"))[0]
             _BaseVisualMatrixSpellerDataset._extract_data(
-                data_dir_extracted_path, data_archive_path
+                data_dir_extracted_path, zipfile_path
             )
 
         run_glob_pattern = os.path.join(
-            data_dir_extracted_path, f"subject{subject}", "*", "matrixSpeller_Block*_Run*.vhdr"
+            data_dir_extracted_path, f"subject{subject:02d}", "matrixSpeller_Block*_Run*.vhdr"
         )
         subject_paths = glob.glob(run_glob_pattern)
         return sorted(subject_paths)
@@ -368,6 +371,11 @@ def _read_raw_llp_study_data(vhdr_fname, run_split_n, raw_slice_offset, run_idx,
         verbose=verbose,
     )  # type: mne.io.Raw
     raw_bvr.set_montage("standard_1020")
+    # TODO: MNE/MOABB do not like anonymized data, therefore we need to set a dummy date
+    DUMMY_DATESTR = '20100101120150667372'
+    meas_date = datetime.strptime(DUMMY_DATESTR, '%Y%m%d%H%M%S%f')
+    meas_date = meas_date.replace(tzinfo=timezone.utc)
+    raw_bvr.set_meas_date(meas_date)
 
     events = _parse_events(raw_bvr)
 

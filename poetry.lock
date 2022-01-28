@@ -182,26 +182,33 @@ test = ["pytest (!=4.6.0)", "pytest-cov", "pytest-timeout", "pytest-harvest", "f
 
 [[package]]
 name = "moabb"
-version = "0.4.4"
+version = "0.4.3"
 description = "Mother of All BCI Benchmarks"
 category = "main"
 optional = false
-python-versions = ">=3.7,<4.0"
+python-versions = "^3.6.1"
+develop = false
 
 [package.dependencies]
-coverage = ">=5.5,<6.0"
-h5py = ">=3.0,<4.0"
-matplotlib = ">=3.0,<4.0"
+coverage = "^5.5.0"
+h5py = "^3.0.0"
+matplotlib = "^3.0.0"
 mne = ">=0.19"
-numpy = ">=1.19.0,<2.0.0"
-pandas = ">=1.0,<2.0"
-pooch = ">=1.3,<2.0"
+numpy = "^1.19.0"
+pandas = "^1.0.0"
+pooch = "^1.3.0"
 pyriemann = ">=0.2.6"
-PyYAML = ">=5.0,<6.0"
-requests = ">=2.15.1,<3.0.0"
-scikit-learn = ">=1.0,<2.0"
-scipy = ">=1.5,<2.0"
-seaborn = ">=0.9"
+PyYAML = "^5.0.0"
+requests = "^2.15.1"
+scikit-learn = ">=0.23"
+scipy = "^1.5"
+seaborn = ">=0.9.0"
+
+[package.source]
+type = "git"
+url = "https://github.com/jsosulski/moabb.git"
+reference = "customization_dev"
+resolved_reference = "226911669d87d61e43ba45818af969585c15eacb"
 
 [[package]]
 name = "more-itertools"
@@ -459,15 +466,32 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
-name = "sklearn"
-version = "0.0"
-description = "A set of python modules for machine learning and data mining"
+name = "spot"
+version = "0.0.1"
+description = "Stimulation Parameter Optimization."
 category = "main"
 optional = false
-python-versions = "*"
+python-versions = ">=3.6.0"
+develop = false
 
-[package.dependencies]
-scikit-learn = "*"
+[package.source]
+type = "directory"
+url = "../spot"
+
+[[package]]
+name = "tdlda"
+version = "0.1.0"
+description = "Time-decoupled linear discriminant analysis."
+category = "main"
+optional = false
+python-versions = ">=3.6.0"
+develop = false
+
+[package.source]
+type = "git"
+url = "https://github.com/jsosulski/time-decoupled-lda"
+reference = "master"
+resolved_reference = "ee7d704ffdbf18fd2fe9f64323fef51e292177dc"
 
 [[package]]
 name = "threadpoolctl"
@@ -528,7 +552,7 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "fd321a1ee461913dd65cd4c65f1f854b50084fb4301e691d4ac4646ad2c554ea"
+content-hash = "510b11e44f55abba660110b425adf83d194b50b8053f20f35c8ac19d5f30ff7b"
 
 [metadata.files]
 appdirs = [
@@ -734,10 +758,7 @@ mne = [
     {file = "mne-0.24.1-py3-none-any.whl", hash = "sha256:26f75fc0b468ed078f35a86a26fa75bab60887b914b90707000cbc0cb8b11e78"},
     {file = "mne-0.24.1.tar.gz", hash = "sha256:38cbffd03a6ad0e83ef4a964ac9910a37d164c37fcc84894e39ed0cdf805300d"},
 ]
-moabb = [
-    {file = "moabb-0.4.4-py3-none-any.whl", hash = "sha256:88cbb7930f93421cf3f1ef1c74a6f2e9a2025da35a929d7b4929b22eb3d98462"},
-    {file = "moabb-0.4.4.tar.gz", hash = "sha256:40ee23f442143c035daf8559ad998a7de32f5d4b82a96cbe00e6be5ec1b2637d"},
-]
+moabb = []
 more-itertools = [
     {file = "more-itertools-8.12.0.tar.gz", hash = "sha256:7dc6ad46f05f545f900dd59e8dfb4e84a4827b97b3cfecb175ea0c7d247f6064"},
     {file = "more_itertools-8.12.0-py3-none-any.whl", hash = "sha256:43e6dd9942dffd72661a2c4ef383ad7da1e6a3e968a927ad7a6083ab410a688b"},
@@ -960,9 +981,8 @@ six = [
     {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
     {file = "six-1.16.0.tar.gz", hash = "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926"},
 ]
-sklearn = [
-    {file = "sklearn-0.0.tar.gz", hash = "sha256:e23001573aa194b834122d2b9562459bf5ae494a2d59ca6b8aa22c85a44c0e31"},
-]
+spot = []
+tdlda = []
 threadpoolctl = [
     {file = "threadpoolctl-3.0.0-py3-none-any.whl", hash = "sha256:4fade5b3b48ae4b1c30f200b28f39180371104fccc642e039e0f2435ec8cc211"},
     {file = "threadpoolctl-3.0.0.tar.gz", hash = "sha256:d03115321233d0be715f0d3a5ad1d6c065fe425ddc2d671ca8e45e9fd5d7a52a"},
