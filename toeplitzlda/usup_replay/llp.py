@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 import numpy as np
 from sklearn.base import BaseEstimator
 
-from blockmatrix import SpatioTemporalMatrix
+from blockmatrix import SpatioTemporalMatrix, fortran_block_levinson
 from sklearn.preprocessing import StandardScaler
 
 
@@ -80,6 +80,7 @@ class LearningFromLabelProportions(BaseEstimator):
         taper_time=None,
         toeplitz_spatial=False,
         taper_spatial=None,
+        use_fortran_solver=False,
         n_times=None,
         n_channels=31,
     ):
@@ -94,6 +95,7 @@ class LearningFromLabelProportions(BaseEstimator):
         self.taper_time = taper_time
         self.toeplitz_spatial = toeplitz_spatial
         self.taper_spatial = taper_spatial
+        self.use_fortran_solver = use_fortran_solver
 
         self.mu_T = None
         self.mu_NT = None
@@ -149,7 +151,12 @@ class LearningFromLabelProportions(BaseEstimator):
         C_diff = mu_T - mu_NT
         C_mean = 0.5 * (mu_T + mu_NT)
 
-        C_w = np.linalg.solve(C_cov, C_diff)
+        if self.use_fortran_solver:
+            if not self.toeplitz_time:
+                raise ValueError("Cannot use fortran solver without block-Toeplitz structure")
+            C_w = fortran_block_levinson(C_cov, C_diff, nch=self.n_channels, ntim=self.n_times)
+        else:
+            C_w = np.linalg.solve(C_cov, C_diff)
         C_w = 2 * C_w / np.dot(C_w.T, C_diff)
         C_b = np.dot(-C_w.T, C_mean)
 

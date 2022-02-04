@@ -180,6 +180,11 @@ class _BaseVisualMatrixSpellerDataset(BaseDataset, ABC):
                         events, _ = mne.events_from_annotations(run_data)
                         event_list.append(events)
                         block_ids.extend([bnr] * len(events))
+
+        DUMMY_DATESTR = '20100101120150667372'
+        meas_date = datetime.strptime(DUMMY_DATESTR, '%Y%m%d%H%M%S%f')
+        meas_date = meas_date.replace(tzinfo=timezone.utc)
+        [r.set_meas_date(meas_date) for r in raws]
         raws_epochs, _ = mne.concatenate_raws(raws, events_list=event_list, preload=True)
         raws_epochs = raws_epochs.filter(*fband)
         events, events_dict = mne.events_from_annotations(raws_epochs)
@@ -372,10 +377,10 @@ def _read_raw_llp_study_data(vhdr_fname, run_split_n, raw_slice_offset, run_idx,
     )  # type: mne.io.Raw
     raw_bvr.set_montage("standard_1020")
     # TODO: MNE/MOABB do not like anonymized data, therefore we need to set a dummy date
-    DUMMY_DATESTR = '20100101120150667372'
-    meas_date = datetime.strptime(DUMMY_DATESTR, '%Y%m%d%H%M%S%f')
-    meas_date = meas_date.replace(tzinfo=timezone.utc)
-    raw_bvr.set_meas_date(meas_date)
+    # DUMMY_DATESTR = '20100101120150667372'
+    # meas_date = datetime.strptime(DUMMY_DATESTR, '%Y%m%d%H%M%S%f')
+    # meas_date = meas_date.replace(tzinfo=timezone.utc)
+    # raw_bvr.set_meas_date(meas_date)
 
     events = _parse_events(raw_bvr)
 

@@ -1,4 +1,6 @@
 import os
+from threadpoolctl import threadpool_limits
+import time
 import warnings
 from pathlib import Path
 
@@ -192,8 +194,8 @@ df = pd.DataFrame(
 
 num_letters = 63 if ds == "LLP" else 35  # Maximum number of letters is 63
 letter_memory = np.inf  # Keep this many letters in memory for training
-sr = 40
-lowpass = 8
+sr = 500
+lowpass = 200
 
 use_base = False
 use_chdrop = False
@@ -216,6 +218,8 @@ elif sr == 40:
     ntimes = 27
 elif sr == 200:
     ntimes = 131
+elif sr == 500:
+    ntimes = 326
 elif sr == 1000:
     ntimes = 651
 else:
@@ -229,7 +233,7 @@ suffix += "_base" if use_base else ""
 suffix += "_chdrop" if use_chdrop else ""
 
 basedir = (
-    Path.home() / f"results_usup" / f"{lowpass}hz_lowpass_{sr}Hz_sr_{ntimes}tD{suffix}"
+    Path.home() / f"results_usup_runtime" / f"{lowpass}hz_lowpass_{sr}Hz_sr_{ntimes}tD{suffix}"
 )
 os.makedirs(
     basedir,
@@ -261,7 +265,8 @@ def get_llp_epochs(sub, block, use_cache=True):
             raise e
 
 
-for sub in range(1, 1 + n_subs):
+# for sub in range(1, 1 + n_subs):
+for sub in range(1, 2):
     for block in range(1, 4):
         print(f"Subject {sub}, block {block}")
         print(f" Loading Data")
@@ -299,7 +304,7 @@ for sub in range(1, 1 + n_subs):
                     n_times=6 if use_each_best or use_jump else ntimes,
                 ),
             ),
-            toep_lda=make_pipeline(
+            toep_numpy=make_pipeline(
                 EpochsVectorizer(
                     mne_scaler=mne.decoding.Scaler(epochs.info, scalings="mean"),
                     **vec_args_toep,
@@ -309,6 +314,19 @@ for sub in range(1, 1 + n_subs):
                     n_channels=len(epochs.ch_names),
                     toeplitz_time=True,
                     taper_time=linear_taper,
+                ),
+            ),
+            toep_fortran=make_pipeline(
+                EpochsVectorizer(
+                    mne_scaler=mne.decoding.Scaler(epochs.info, scalings="mean"),
+                    **vec_args_toep,
+                ),
+                LearningFromLabelProportions(
+                    n_times=ntimes,
+                    n_channels=len(epochs.ch_names),
+                    toeplitz_time=True,
+                    taper_time=linear_taper,
+                    use_fortran_solver=True,
                 ),
             ),
         )
@@ -336,6 +354,7 @@ for sub in range(1, 1 + n_subs):
             pred_earliest = dict()
             for cli, ckey in enumerate(clfs):
                 clf = clfs[ckey]
+                fit_time = np.nan
                 if enable_calculate_postfix:
                     if clf_state[ckey] is None:
                         print("Training classifier on all epochs.")
@@ -345,7 +364,11 @@ for sub in range(1, 1 + n_subs):
                         clf_state[ckey] = clf
                     clf = clf_state[ckey]
                 else:
-                    clf.fit(X, s)
+                    with threadpool_limits(limits=1):
+                        start = time.time()
+                        clf.fit(X, s)
+                        fit_time = time.time() - start
+                        # print(f"Fit time {ckey}: {fit_time}")
                 cur_X = cur_epo
                 pred = clf.predict(cur_X)
                 (
@@ -374,9 +397,11 @@ for sub in range(1, 1 + n_subs):
                     num_target_flashes=num_target_flashes,
                     mandatory_target_flashes=mandatory_target_flashes,
                     auc=auc,
+                    fit_time=fit_time,
                 )
+                # This does not work
                 # df = pd.concat([df, row], ignore_index=True)
-                # This cause FutureWarning
+                # This causes FutureWarning
                 df = df.append(row, ignore_index=True)
 
             if not np.all(np.array(list(pred_letter.values())) == gt_letter):

@@ -16,6 +16,36 @@ from blockmatrix import SpatioTemporalMatrix, fortran_block_levinson
 from toeplitzlda.usup_replay.llp import shrinkage
 
 
+def subtract_classwise_means(xTr, y, ext_mean=None):
+    n_classes = len(np.unique(y))
+    n_features = xTr.shape[0]
+    X = np.zeros((n_features, 0))
+    cl_mean = np.zeros((n_features, n_classes))
+    for ci, cur_class in enumerate(np.unique(y)):
+        class_idxs = y == cur_class
+        cl_mean[:, ci] = np.mean(xTr[:, class_idxs], axis=1)
+
+        if ext_mean is None:
+            X = np.concatenate(
+                [
+                    X,
+                    xTr[:, class_idxs]
+                    - np.dot(cl_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))),
+                    ],
+                axis=1,
+            )
+        else:
+            X = np.concatenate(
+                [
+                    X,
+                    xTr[:, class_idxs]
+                    - np.dot(ext_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))),
+                    ],
+                axis=1,
+            )
+    return X, cl_mean
+
+
 class EpochsVectorizer(BaseEstimator, TransformerMixin):
     def __init__(
             self,
@@ -82,36 +112,6 @@ class EpochsVectorizer(BaseEstimator, TransformerMixin):
         return X
 
 
-def diag_indices_with_offset(p, offset):
-    idxdiag = np.diag_indices(p)
-    idxdiag_with_offset = list()
-    idxdiag_with_offset.append(np.array([i + offset for i in idxdiag[0]]))
-    idxdiag_with_offset.append(np.array([i + offset for i in idxdiag[1]]))
-    return tuple(idxdiag_with_offset)
-
-
-def iw_correction(X, standardize=True):
-    p, n = X.shape
-
-    if standardize:
-        sc = StandardScaler()  # standardize features
-        X = sc.fit_transform(X.T).T
-
-    Xn = X - np.repeat(np.mean(X, axis=1, keepdims=True), n, axis=1)
-    cov = np.matmul(Xn, Xn.T)
-    idxdiag = np.diag_indices(p)
-
-    # Target = B
-    nu = np.mean(cov[idxdiag])
-
-    iw_scale = np.sqrt(nu)
-    perturbation = iw_scale * invwishart.rvs(p + 2, scale=np.eye(p))
-    cov = cov + perturbation  # geodesic(cov, perturbation, 0.1)
-    if standardize:  # scale back
-        cov = sc.scale_[np.newaxis, :] * cov * sc.scale_[:, np.newaxis]
-    return cov
-
-
 # corresponds to train_RLDAshrink.m and clsutil_shrinkage.m from bbci_public
 class ShrinkageLinearDiscriminantAnalysis(
     sklearn.base.BaseEstimator,
@@ -126,11 +126,9 @@ class ShrinkageLinearDiscriminantAnalysis(
         pool_cov=True,
         standardize_shrink=True,
         shrink_block=False,
-        use_xcov=False,
         calculate_oracle_mean=None,
         unit_w=False,
         fixed_gamma=None,
-        use_invwishart_correction=False,
         enforce_toeplitz=False,
         use_fortran_solver=False,
         banding=None,
@@ -144,11 +142,9 @@ class ShrinkageLinearDiscriminantAnalysis(
         self.pool_cov = pool_cov
         self.standardize_shrink = standardize_shrink
         self.shrink_block = shrink_block
-        self.use_xcov = use_xcov
         self.calculate_oracle_mean = calculate_oracle_mean
         self.unit_w = unit_w
         self.fixed_gamma = fixed_gamma
-        self.use_invwishart_correction = use_invwishart_correction
         self.enforce_toeplitz = enforce_toeplitz
         self.use_fortran_solver = use_fortran_solver
         if self.use_fortran_solver and not self.enforce_toeplitz:
@@ -157,7 +153,7 @@ class ShrinkageLinearDiscriminantAnalysis(
         self.tapering = tapering
         self.data_is_channel_prime = data_is_channel_prime
 
-    def fit(self, X_train, y, xcov=None, oracle_data=None):
+    def fit(self, X_train, y, oracle_data=None):
         # Section: Basic setup
         if self.calculate_oracle_mean is None:
             oracle_data = None
@@ -166,8 +162,6 @@ class ShrinkageLinearDiscriminantAnalysis(
             raise ValueError("currently only binary class supported")
         assert len(X_train) == len(y)
         xTr = X_train.T
-        if not self.use_xcov:
-            xcov = None
 
         n_classes = 2
         if self.priors is None:
@@ -187,17 +181,14 @@ class ShrinkageLinearDiscriminantAnalysis(
         elif self.calculate_oracle_mean == "only_clmean":
             _, cl_mean = subtract_classwise_means(oracle_data["x"].T, oracle_data["y"])
         if self.pool_cov:
-            if not self.use_invwishart_correction:
-                C_cov, C_gamma = shrinkage(
-                    X if xcov is None else xcov.T,
-                    n_channels=self.n_channels,
-                    n_times=self.n_times,
-                    standardize=self.standardize_shrink,
-                    block=self.shrink_block,
-                    gamma=self.fixed_gamma,
-                )
-            else:
-                C_cov = iw_correction(X if xcov is None else xcov.T)
+            C_cov, C_gamma = shrinkage(
+                X,
+                n_channels=self.n_channels,
+                n_times=self.n_times,
+                standardize=self.standardize_shrink,
+                block=self.shrink_block,
+                gamma=self.fixed_gamma,
+            )
         else:
             n_classes = 2
             C_cov = np.zeros((xTr.shape[0], xTr.shape[0]))
@@ -250,10 +241,6 @@ class ShrinkageLinearDiscriminantAnalysis(
         w = w / np.linalg.norm(w) if self.unit_w else w
         b = -0.5 * np.sum(cl_mean * w, axis=0).T + prior_offset
 
-        # if n_classes == 2:
-        #     w = w[:, 1] - w[:, 0]
-        #     b = b[1] - b[0]
-
         self.coef_ = w.reshape((1, -1))
         self.intercept_ = b
 
@@ -292,33 +279,3 @@ class ShrinkageLinearDiscriminantAnalysis(
             Estimated log probabilities.
         """
         return np.log(self.predict_proba(X))
-
-
-def subtract_classwise_means(xTr, y, ext_mean=None):
-    n_classes = len(np.unique(y))
-    n_features = xTr.shape[0]
-    X = np.zeros((n_features, 0))
-    cl_mean = np.zeros((n_features, n_classes))
-    for ci, cur_class in enumerate(np.unique(y)):
-        class_idxs = y == cur_class
-        cl_mean[:, ci] = np.mean(xTr[:, class_idxs], axis=1)
-
-        if ext_mean is None:
-            X = np.concatenate(
-                [
-                    X,
-                    xTr[:, class_idxs]
-                    - np.dot(cl_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))),
-                ],
-                axis=1,
-            )
-        else:
-            X = np.concatenate(
-                [
-                    X,
-                    xTr[:, class_idxs]
-                    - np.dot(ext_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))),
-                ],
-                axis=1,
-            )
-    return X, cl_mean
