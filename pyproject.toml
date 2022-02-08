@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "toeplitzlda"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = ["Jan Sosulski <mail@jan-sosulski.de>"]
 
@@ -12,6 +12,7 @@ pandas = "^1.4.0"
 blockmatrix = "^0.1.0"
 scikit-learn = "^1.0"
 moabb = "^0.4.4"
+# spot = "../spot"
 
 
 [tool.poetry.dev-dependencies]

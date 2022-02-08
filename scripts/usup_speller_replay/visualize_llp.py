@@ -43,9 +43,7 @@ def savefig(fig, name, prefix=None, format="pdf", dpi=200):
     fig.savefig(figfile, dpi=dpi)
 
 
-paths = list(
-    (Path.home() / "results_usup").glob(f"{lowpass_freq_str}*")
-)
+paths = list((Path.home() / "results_usup").glob(f"{lowpass_freq_str}*"))
 fs_onecol = (4.5, 4.2)
 fs_twocol = (9, 4.2)
 

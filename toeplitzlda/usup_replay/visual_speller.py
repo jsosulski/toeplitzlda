@@ -67,12 +67,36 @@ NUMBER_TO_LETTER_DICT = {
 }
 
 
+def seq_labels_from_epoch(epo):
+    s1 = epo["Sequence_1"].events
+    s1[:, 2] = 1
+    s2 = epo["Sequence_2"].events
+    s2[:, 2] = 2
+    s = np.vstack([s1, s2])
+    l1 = epo["Target"].events
+    l1[:, 2] = 1
+    l0 = epo["NonTarget"].events
+    l0[:, 2] = 0
+    l = np.vstack([l0, l1])
+    s = np.array(sorted(s, key=lambda x: x[0]))
+    l = np.array(sorted(l, key=lambda x: x[0]))
+    return s[:, 2], l[:, 2]
+
+
 class _BaseVisualMatrixSpellerDataset(BaseDataset, ABC):
     def __init__(
-        self, n_subjects, run_split_n, raw_slice_offset, data_path=None, src_url=None, **kwargs
+        self,
+        n_subjects,
+        run_split_n,
+        raw_slice_offset,
+        data_path=None,
+        src_url=None,
+        **kwargs,
     ):
         if run_split_n is not None and (run_split_n > 7 or run_split_n < 1):
-            raise ValueError(f"Split must be in interval [1, 7] or None. But was {run_split_n}.")
+            raise ValueError(
+                f"Split must be in interval [1, 7] or None. But was {run_split_n}."
+            )
 
         self.n_channels = 31  # all channels except 5 times x_* CH and EOGvu
         if kwargs["interval"] is None:
@@ -138,7 +162,9 @@ class _BaseVisualMatrixSpellerDataset(BaseDataset, ABC):
 
         return sessions
 
-    def data_path(self, subject, path=None, force_update=False, update_path=None, verbose=None):
+    def data_path(
+        self, subject, path=None, force_update=False, update_path=None, verbose=None
+    ):
 
         url = f"{self._src_url}subject{subject:02d}.zip"
         data_archive_path = dl.data_path(url, "llp")
@@ -146,18 +172,24 @@ class _BaseVisualMatrixSpellerDataset(BaseDataset, ABC):
         # else:
         #     raise ValueError(f'URL or data path must be given but both are None.')
 
-        subject_dir_path = os.path.join(data_dir_extracted_path, f"subject{subject:02d}")
+        subject_dir_path = os.path.join(
+            data_dir_extracted_path, f"subject{subject:02d}"
+        )
 
         data_extracted = os.path.isdir(subject_dir_path)
         if not data_extracted:
             # print('unzip', path_to_data_archive)  # TODO logging? check verbose
-            zipfile_path = glob.glob(os.path.join(data_dir_extracted_path, data_archive_path, "*.zip"))[0]
+            zipfile_path = glob.glob(
+                os.path.join(data_dir_extracted_path, data_archive_path, "*.zip")
+            )[0]
             _BaseVisualMatrixSpellerDataset._extract_data(
                 data_dir_extracted_path, zipfile_path
             )
 
         run_glob_pattern = os.path.join(
-            data_dir_extracted_path, f"subject{subject:02d}", "matrixSpeller_Block*_Run*.vhdr"
+            data_dir_extracted_path,
+            f"subject{subject:02d}",
+            "matrixSpeller_Block*_Run*.vhdr",
         )
         subject_paths = glob.glob(run_glob_pattern)
         return sorted(subject_paths)
@@ -181,11 +213,13 @@ class _BaseVisualMatrixSpellerDataset(BaseDataset, ABC):
                         event_list.append(events)
                         block_ids.extend([bnr] * len(events))
 
-        DUMMY_DATESTR = '20100101120150667372'
-        meas_date = datetime.strptime(DUMMY_DATESTR, '%Y%m%d%H%M%S%f')
+        DUMMY_DATESTR = "20100101120150667372"
+        meas_date = datetime.strptime(DUMMY_DATESTR, "%Y%m%d%H%M%S%f")
         meas_date = meas_date.replace(tzinfo=timezone.utc)
         [r.set_meas_date(meas_date) for r in raws]
-        raws_epochs, _ = mne.concatenate_raws(raws, events_list=event_list, preload=True)
+        raws_epochs, _ = mne.concatenate_raws(
+            raws, events_list=event_list, preload=True
+        )
         raws_epochs = raws_epochs.filter(*fband)
         events, events_dict = mne.events_from_annotations(raws_epochs)
 
@@ -217,7 +251,7 @@ class _BaseVisualMatrixSpellerDataset(BaseDataset, ABC):
         #
         # epochs.metadata = md
 
-        return epochs
+        return epochs, raws_epochs
 
 
 class VisualMatrixSpellerLLPDataset(_BaseVisualMatrixSpellerDataset):
@@ -278,7 +312,7 @@ class VisualMatrixSpellerLLPDataset(_BaseVisualMatrixSpellerDataset):
         raw_slice_offset=None,
     ):
         llp_speller_paper_doi = "10.1371/journal.pone.0175856"
-        self.tmin = -0.8
+        self.tmin = -0.2
         self.tmax = 0.8
         self.downsample_freq = 100
         super().__init__(
@@ -350,7 +384,9 @@ class VisualMatrixSpellerMixDataset(_BaseVisualMatrixSpellerDataset):
         )
 
 
-def _read_raw_llp_study_data(vhdr_fname, run_split_n, raw_slice_offset, run_idx, verbose=None):
+def _read_raw_llp_study_data(
+    vhdr_fname, run_split_n, raw_slice_offset, run_idx, verbose=None
+):
     """
     Read LLP BVR recordings file. Ignore the different sequence lengths. Just tag event as target or non-target if it
     contains a target or does not contain a target.
@@ -405,10 +441,14 @@ def _read_raw_llp_study_data(vhdr_fname, run_split_n, raw_slice_offset, run_idx,
         tmax = min((onset_arr[-1] + raw_slice_offset) / 1e3, raw.times[-1])
         return raw_annotated.crop(tmin=tmin, tmax=tmax, include_tmax=True)
 
-    return list(map(annotate_and_crop_raw, onset_arr_list, marker_arr_list, sequence_arr_list))
+    return list(
+        map(annotate_and_crop_raw, onset_arr_list, marker_arr_list, sequence_arr_list)
+    )
 
 
-def _create_annotations_from(marker_arr, onset_arr, sequence_arr, letter_arr, raw_bvr, run_idx):
+def _create_annotations_from(
+    marker_arr, onset_arr, sequence_arr, letter_arr, raw_bvr, run_idx
+):
     default_bvr_marker_duration = raw_bvr.annotations[0]["duration"]
 
     onset = onset_arr / 1e3  # convert onset in seconds to ms
@@ -465,7 +505,9 @@ def _parse_events(raw_bvr):
             return OPTICAL_MARKER_CODE
         return int(match.group(2))
 
-    events, _ = mne.events_from_annotations(raw=raw_bvr, event_id=parse_marker, verbose=None)
+    events, _ = mne.events_from_annotations(
+        raw=raw_bvr, event_id=parse_marker, verbose=None
+    )
     return events
 
 
@@ -511,7 +553,12 @@ def _extract_target_non_target_description(events, run_split_n):
         )
     else:
         return _split_run_into_n_splits_of_trials(
-            broken_events_idx, marker_arr, onset_arr, sequence_arr, letter_arr, run_split_n
+            broken_events_idx,
+            marker_arr,
+            onset_arr,
+            sequence_arr,
+            letter_arr,
+            run_split_n,
         )
 
 
@@ -545,7 +592,9 @@ def _split_run_into_n_splits_of_trials(
         splits = np.split(data_arr, trial_split_idx)
         del splits[run_split_n:]
 
-        return [np.delete(split, broken_idx_for_split(i)) for i, split in enumerate(splits)]
+        return [
+            np.delete(split, broken_idx_for_split(i)) for i, split in enumerate(splits)
+        ]
 
     onset_arr_list = split_data(onset_arr)
     marker_arr_list = split_data(marker_arr)
@@ -562,7 +611,9 @@ def _find_epoch_onset(epoch_events):
         if stimulus_onset_time.size != 2:
             return False
 
-        stimulus_prior_second_optical_marker = epoch_events[np.where(optical_idx)[0][1] - 1, 2]
+        stimulus_prior_second_optical_marker = epoch_events[
+            np.where(optical_idx)[0][1] - 1, 2
+        ]
         return stimulus_prior_second_optical_marker in [50, 51, 11]
 
     if stimulus_onset_time.size == 1 or second_optical_is_feedback():

@@ -15,9 +15,11 @@ from toeplitzlda.usup_replay.llp import LearningFromLabelProportions
 from toeplitzlda.usup_replay.visual_speller import (
     VisualMatrixSpellerLLPDataset,
     VisualMatrixSpellerMixDataset,
+    seq_labels_from_epoch,
 )
 
 from toeplitzlda.classification.toeplitzlda import EpochsVectorizer
+
 mne.set_log_level("INFO")
 
 np.seterr(divide="ignore")  # this does nothing for some reason
@@ -66,22 +68,6 @@ GT_LLP = "FRANZY JAGT IM KOMPLETT VERWAHRLOSTEN TAXI QUER DURCH FREIBURG."
 GT_MIX = "FRANZY JAGT IM TAXI QUER DURCH DAS "
 
 spellable = list(EVENT_ID_TO_LETTER_DICT.values())
-
-
-def seq_labels_from_epoch(epo):
-    s1 = epo["Sequence_1"].events
-    s1[:, 2] = 1
-    s2 = epo["Sequence_2"].events
-    s2[:, 2] = 2
-    s = np.vstack([s1, s2])
-    l1 = epo["Target"].events
-    l1[:, 2] = 1
-    l0 = epo["NonTarget"].events
-    l0[:, 2] = 0
-    l = np.vstack([l1, l0])
-    s = np.array(sorted(s, key=lambda x: x[0]))
-    l = np.array(sorted(l, key=lambda x: x[0]))
-    return s[:, 2], l[:, 2]
 
 
 def predicted_letter(epo, pred, ax=None, gt=None, agg=np.mean):
@@ -233,12 +219,15 @@ suffix += "_base" if use_base else ""
 suffix += "_chdrop" if use_chdrop else ""
 
 basedir = (
-    Path.home() / f"results_usup_runtime" / f"{lowpass}hz_lowpass_{sr}Hz_sr_{ntimes}tD{suffix}"
+    Path.home()
+    / f"results_usup_runtime"
+    / f"{lowpass}hz_lowpass_{sr}Hz_sr_{ntimes}tD{suffix}"
 )
 os.makedirs(
     basedir,
     exist_ok=True,
 )
+
 
 def get_llp_epochs(sub, block, use_cache=True):
     dataset.subject_list = [sub]
@@ -250,7 +239,7 @@ def get_llp_epochs(sub, block, use_cache=True):
         print("Preprocessing data.")
         try:
             # ATTENTION: TODO Unify Lowpass handling -> also in select_ival and n_times param
-            epochs = dataset.load_epochs(
+            epochs, raws = dataset.load_epochs(
                 block_nrs=[block], fband=[0.5, lowpass], sampling_rate=sr
             )
             if use_base:
@@ -260,17 +249,21 @@ def get_llp_epochs(sub, block, use_cache=True):
                 epochs.drop_channels("Fp2")
             if use_cache:
                 epochs.save(epo_file)
-            return epochs
+            return epochs, raws
         except Exception as e:  # TODO specify what to catch
             raise e
 
 
-# for sub in range(1, 1 + n_subs):
-for sub in range(1, 2):
-    for block in range(1, 4):
+# all_subjects = list(range(1, 1 + n_subs))
+all_subjects = list(range(1, 1 + 1))
+all_blocks = list(range(1, 4))
+all_letters = list(range(1, 1 + num_letters))
+
+for sub in all_subjects:
+    for block in range(1, 2):
         print(f"Subject {sub}, block {block}")
         print(f" Loading Data")
-        epochs = get_llp_epochs(sub, block, use_cache=False)
+        epochs, raws = get_llp_epochs(sub, block, use_cache=False)
         if epochs is None:
             continue
         print(f" Starting evaluation")
@@ -304,18 +297,19 @@ for sub in range(1, 2):
                     n_times=6 if use_each_best or use_jump else ntimes,
                 ),
             ),
-            toep_numpy=make_pipeline(
-                EpochsVectorizer(
-                    mne_scaler=mne.decoding.Scaler(epochs.info, scalings="mean"),
-                    **vec_args_toep,
-                ),
-                LearningFromLabelProportions(
-                    n_times=ntimes,
-                    n_channels=len(epochs.ch_names),
-                    toeplitz_time=True,
-                    taper_time=linear_taper,
-                ),
-            ),
+            # # Slower by 2x or 1.4x depending on whether 1 or 8 cores are used.
+            # toep_numpy=make_pipeline(
+            #     EpochsVectorizer(
+            #         mne_scaler=mne.decoding.Scaler(epochs.info, scalings="mean"),
+            #         **vec_args_toep,
+            #     ),
+            #     LearningFromLabelProportions(
+            #         n_times=ntimes,
+            #         n_channels=len(epochs.ch_names),
+            #         toeplitz_time=True,
+            #         taper_time=linear_taper,
+            #     ),
+            # ),
             toep_fortran=make_pipeline(
                 EpochsVectorizer(
                     mne_scaler=mne.decoding.Scaler(epochs.info, scalings="mean"),
@@ -333,6 +327,7 @@ for sub in range(1, 2):
         correct_letters = {k: 0 for k in clfs}
         aucs = {k: list() for k in clfs}
         clf_state = {k: None for k in clfs}
+        weight_vecs = dict()
         for let_i in range(1, 1 + num_letters):
             gt_letter = GT[let_i - 1]
             beg, end = max(1, let_i - letter_memory + 1), let_i
@@ -399,6 +394,10 @@ for sub in range(1, 2):
                     auc=auc,
                     fit_time=fit_time,
                 )
+                weight_vecs[let_i] = {
+                    "toep_w": clfs["toep_fortran"][-1].w,
+                    "slda_w": clfs["slda"][-1].w,
+                }
                 # This does not work
                 # df = pd.concat([df, row], ignore_index=True)
                 # This causes FutureWarning
@@ -410,11 +409,18 @@ for sub in range(1, 2):
                     print(f' {k.rjust(25)} predicted: "{pred_letter[k]}"')
                 print("----------")
 
+            csv_name_partial = f"{basedir}/{ds}_usup_toeplitz_PARTIAL.csv"
+            df.to_csv(csv_name_partial)
+
 df["sample_rate"] = sr
 df["ntime_features"] = ntimes
 df["letter_memory"] = letter_memory
 df["lowpass"] = lowpass
 df["early_stop_sim"] = enable_early_stopping_simulation
 df["postfix_sim"] = enable_calculate_postfix
-csv_name = f"{basedir}{ds}_usup_toeplitz.csv"
-df.to_csv(csv_name)
+csv_name = f"{basedir}/{ds}_usup_toeplitz.csv"
+# df.to_csv(csv_name)
+
+np.savez("/home/jan/z_lda_weights.npz", weights=weight_vecs)
+epochs.save("/home/jan/z_llp-epo.fif", overwrite=True)
+raws.save("/home/jan/z_llp.fif", overwrite=True)

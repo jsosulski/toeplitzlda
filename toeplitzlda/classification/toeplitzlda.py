@@ -1,3 +1,4 @@
+import time
 from typing import Optional, Tuple
 
 import mne
@@ -5,15 +6,57 @@ import numpy as np
 import sklearn
 import sklearn.linear_model
 import sklearn.utils.multiclass
-from pyriemann.utils.geodesic import geodesic
-from scipy.stats import invwishart
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.covariance import empirical_covariance, fast_mcd, ledoit_wolf, oas
+
+from blockmatrix import (
+    SpatioTemporalMatrix,
+    fortran_block_levinson,
+    linear_taper,
+    fortran_cov_mean_transformation,
+)
 from sklearn.preprocessing import StandardScaler
 
-from blockmatrix import SpatioTemporalMatrix, fortran_block_levinson
+from toeplitzlda.classification.covariance import calc_n_times
 
-from toeplitzlda.usup_replay.llp import shrinkage
+
+def shrinkage(
+    X: np.ndarray,
+    gamma: Optional[float] = None,
+    T: Optional[np.ndarray] = None,
+    S: Optional[np.ndarray] = None,
+    standardize: bool = True,
+) -> Tuple[np.ndarray, float]:
+    # case for gamma = auto (ledoit-wolf)
+    p, n = X.shape
+
+    if standardize:
+        sc = StandardScaler()  # standardize features
+        X = sc.fit_transform(X.T).T
+    Xn = X - np.repeat(np.mean(X, axis=1, keepdims=True), n, axis=1)
+    if S is None:
+        S = np.matmul(Xn, Xn.T)
+    Xn2 = np.square(Xn)
+    idxdiag = np.diag_indices(p)
+
+    nu = np.mean(S[idxdiag])
+    if T is None:
+        T = nu * np.eye(p, p)
+
+    # Ledoit Wolf
+    V = 1.0 / (n - 1) * (np.matmul(Xn2, Xn2.T) - np.square(S) / n)
+    if gamma is None:
+        gamma = n * np.sum(V) / np.sum(np.square(S - T))
+    if gamma > 1:
+        print("logger.warning('forcing gamma to 1')")
+        gamma = 1
+    elif gamma < 0:
+        print("logger.warning('forcing gamma to 0')")
+        gamma = 0
+    Cstar = (gamma * T + (1 - gamma) * S) / (n - 1)
+    if standardize:  # scale back
+        Cstar = sc.scale_[np.newaxis, :] * Cstar * sc.scale_[:, np.newaxis]
+
+    return Cstar, gamma
 
 
 def subtract_classwise_means(xTr, y, ext_mean=None):
@@ -30,8 +73,10 @@ def subtract_classwise_means(xTr, y, ext_mean=None):
                 [
                     X,
                     xTr[:, class_idxs]
-                    - np.dot(cl_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))),
-                    ],
+                    - np.dot(
+                        cl_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))
+                    ),
+                ],
                 axis=1,
             )
         else:
@@ -39,8 +84,10 @@ def subtract_classwise_means(xTr, y, ext_mean=None):
                 [
                     X,
                     xTr[:, class_idxs]
-                    - np.dot(ext_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))),
-                    ],
+                    - np.dot(
+                        ext_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))
+                    ),
+                ],
                 axis=1,
             )
     return X, cl_mean
@@ -48,16 +95,16 @@ def subtract_classwise_means(xTr, y, ext_mean=None):
 
 class EpochsVectorizer(BaseEstimator, TransformerMixin):
     def __init__(
-            self,
-            permute_channels_and_time=True,
-            select_ival=None,
-            jumping_mean_ivals=None,
-            averaging_samples=None,
-            rescale_to_uv=True,
-            mne_scaler=None,
-            pool_times=False,
-            to_numpy_only=False,
-            copy=True,
+        self,
+        permute_channels_and_time=True,
+        select_ival=None,
+        jumping_mean_ivals=None,
+        averaging_samples=None,
+        rescale_to_uv=True,
+        mne_scaler=None,
+        pool_times=False,
+        to_numpy_only=False,
+        copy=True,
     ):
         self.permute_channels_and_time = permute_channels_and_time
         self.jumping_mean_ivals = jumping_mean_ivals
@@ -100,7 +147,9 @@ class EpochsVectorizer(BaseEstimator, TransformerMixin):
             X = e.get_data() * self.scaling
             raise ValueError("This should never be entered though.")
         else:
-            assert False, "In the constructor, pass either select ival or jumping means."
+            assert (
+                False
+            ), "In the constructor, pass either select ival or jumping means."
         if self.mne_scaler is not None:
             X = self.mne_scaler.fit_transform(X)
         if self.permute_channels_and_time and not self.pool_times:
@@ -117,15 +166,16 @@ class ShrinkageLinearDiscriminantAnalysis(
     sklearn.base.BaseEstimator,
     sklearn.discriminant_analysis.LinearClassifierMixin,
 ):
+    """SLDA Implementation with bells and whistles and a lot of options."""
+
     def __init__(
         self,
         priors=None,
         only_block=False,
-        n_times=5,
+        n_times="infer",
         n_channels=31,
         pool_cov=True,
         standardize_shrink=True,
-        shrink_block=False,
         calculate_oracle_mean=None,
         unit_w=False,
         fixed_gamma=None,
@@ -141,7 +191,6 @@ class ShrinkageLinearDiscriminantAnalysis(
         self.n_channels = n_channels
         self.pool_cov = pool_cov
         self.standardize_shrink = standardize_shrink
-        self.shrink_block = shrink_block
         self.calculate_oracle_mean = calculate_oracle_mean
         self.unit_w = unit_w
         self.fixed_gamma = fixed_gamma
@@ -183,10 +232,7 @@ class ShrinkageLinearDiscriminantAnalysis(
         if self.pool_cov:
             C_cov, C_gamma = shrinkage(
                 X,
-                n_channels=self.n_channels,
-                n_times=self.n_times,
                 standardize=self.standardize_shrink,
-                block=self.shrink_block,
                 gamma=self.fixed_gamma,
             )
         else:
@@ -196,11 +242,12 @@ class ShrinkageLinearDiscriminantAnalysis(
                 class_idxs = y == cur_class
                 x_slice = X[:, class_idxs]
                 C_cov += priors[cur_class] * shrinkage(x_slice)[0]
-
+        dim = C_cov.shape[0]
+        nt = calc_n_times(dim, self.n_channels, self.n_times)
         stm = SpatioTemporalMatrix(
             C_cov,
             n_chans=self.n_channels,
-            n_times=self.n_times,
+            n_times=nt,
             channel_prime=self.data_is_channel_prime,
         )
         if not self.data_is_channel_prime:
@@ -219,7 +266,7 @@ class ShrinkageLinearDiscriminantAnalysis(
 
         if self.only_block:
             C_cov_new = np.zeros_like(C_cov)
-            for i in range(self.n_times):
+            for i in range(nt):
                 idx_start = i * self.n_channels
                 idx_end = idx_start + self.n_channels
                 C_cov_new[idx_start:idx_end, idx_start:idx_end] = C_cov[
@@ -234,10 +281,19 @@ class ShrinkageLinearDiscriminantAnalysis(
         else:
             prior_offset = np.log(priors)
 
+        # Numpy uses more cores, fortran library only one
+        # with threadpoolctl.threadpool_limits(limits=1):
         if self.use_fortran_solver:
-            w = fortran_block_levinson(C_cov, cl_mean, nch=self.n_channels, ntim=self.n_times)
+            fcov, fmean = fortran_cov_mean_transformation(
+                C_cov, cl_mean, nch=self.n_channels, ntim=nt
+            )
+            st = time.time()
+            w = fortran_block_levinson(fcov, fmean, transform_A=False)
+            self.fit_time_ = time.time() - st
         else:
+            st = time.time()
             w = np.linalg.solve(C_cov, cl_mean)
+            self.fit_time_ = time.time() - st
         w = w / np.linalg.norm(w) if self.unit_w else w
         b = -0.5 * np.sum(cl_mean * w, axis=0).T + prior_offset
 
@@ -279,3 +335,23 @@ class ShrinkageLinearDiscriminantAnalysis(
             Estimated log probabilities.
         """
         return np.log(self.predict_proba(X))
+
+
+class ToeplitzLDA(ShrinkageLinearDiscriminantAnalysis):
+    def __init__(
+        self,
+        n_times="infer",
+        n_channels=None,
+        data_is_channel_prime=True,
+        use_fortran_solver=False,
+    ):
+        if n_channels is None:
+            raise ValueError(f"Required parameter n_channels is not set.")
+        super().__init__(
+            data_is_channel_prime=data_is_channel_prime,
+            n_times=n_times,
+            n_channels=n_channels,
+            use_fortran_solver=use_fortran_solver,
+            tapering=linear_taper,
+            enforce_toeplitz=True,
+        )

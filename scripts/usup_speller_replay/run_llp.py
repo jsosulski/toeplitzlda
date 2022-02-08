@@ -13,9 +13,11 @@ from toeplitzlda.usup_replay.llp import LearningFromLabelProportions
 from toeplitzlda.usup_replay.visual_speller import (
     VisualMatrixSpellerLLPDataset,
     VisualMatrixSpellerMixDataset,
+    seq_labels_from_epoch,
 )
 
 from toeplitzlda.classification.toeplitzlda import EpochsVectorizer
+
 mne.set_log_level("INFO")
 
 np.seterr(divide="ignore")  # this does nothing for some reason
@@ -64,22 +66,6 @@ GT_LLP = "FRANZY JAGT IM KOMPLETT VERWAHRLOSTEN TAXI QUER DURCH FREIBURG."
 GT_MIX = "FRANZY JAGT IM TAXI QUER DURCH DAS "
 
 spellable = list(EVENT_ID_TO_LETTER_DICT.values())
-
-
-def seq_labels_from_epoch(epo):
-    s1 = epo["Sequence_1"].events
-    s1[:, 2] = 1
-    s2 = epo["Sequence_2"].events
-    s2[:, 2] = 2
-    s = np.vstack([s1, s2])
-    l1 = epo["Target"].events
-    l1[:, 2] = 1
-    l0 = epo["NonTarget"].events
-    l0[:, 2] = 0
-    l = np.vstack([l1, l0])
-    s = np.array(sorted(s, key=lambda x: x[0]))
-    l = np.array(sorted(l, key=lambda x: x[0]))
-    return s[:, 2], l[:, 2]
 
 
 def predicted_letter(epo, pred, ax=None, gt=None, agg=np.mean):
@@ -235,6 +221,7 @@ os.makedirs(
     basedir,
     exist_ok=True,
 )
+
 
 def get_llp_epochs(sub, block, use_cache=True):
     dataset.subject_list = [sub]
