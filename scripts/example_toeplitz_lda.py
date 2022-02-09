@@ -101,16 +101,16 @@ clfs["sup"]["skl_lda_toep"] = make_pipeline(
 )
 
 # Currently not yet implemented in upstream sklearn
-clfs["sup"]["skl_lda_toep_pooled"] = make_pipeline(
-    EpochsVectorizer(
-        select_ival=[0.05, 0.7],
-    ),
-    LinearDiscriminantAnalysis(
-        solver="lsqr",
-        covariance_estimator=ToepTapLW(n_times="infer", n_channels=nch),
-        pooled_cov=True,
-    ),
-)
+# clfs["sup"]["skl_lda_toep_pooled"] = make_pipeline(
+#     EpochsVectorizer(
+#         select_ival=[0.05, 0.7],
+#     ),
+#     LinearDiscriminantAnalysis(
+#         solver="lsqr",
+#         covariance_estimator=ToepTapLW(n_times="infer", n_channels=nch),
+#         pooled_cov=True,
+#     ),
+# )
 
 # Unsupervised classifiers, i.e., make use of label proportions, not true labels
 # LLP with proposed block-Toeplitz structure
