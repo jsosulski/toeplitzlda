@@ -30,18 +30,20 @@ tests_no_zope = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>
 
 [[package]]
 name = "blockmatrix"
-version = "0.1.0"
-description = ""
+version = "0.2.0"
+description = "Utilities to handle blockmatrices, especially covariance matrices."
 category = "main"
 optional = false
 python-versions = ">=3.8,<4.0"
 
 [package.dependencies]
 matplotlib = ">=3.5.1,<4.0.0"
-mne = ">=0.24.1,<0.25.0"
 seaborn = ">=0.11.2,<0.12.0"
-toeplitz = ">=0.3.2,<0.4.0"
 vg = ">=2.0.0,<3.0.0"
+
+[package.extras]
+solver = ["toeplitz (>=0.3.2,<0.4.0)"]
+channels = ["mne (>=0.24.1,<0.25.0)"]
 
 [[package]]
 name = "certifi"
@@ -471,12 +473,12 @@ name = "toeplitz"
 version = "0.3.2"
 description = "Python wrapper for Fortran90 toeplitz package to solve a variety of Toeplitz and circulant linear systems"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [[package]]
 name = "tomli"
-version = "2.0.0"
+version = "2.0.1"
 description = "A lil' TOML parser"
 category = "main"
 optional = false
@@ -514,10 +516,13 @@ category = "dev"
 optional = false
 python-versions = "*"
 
+[extras]
+solver = ["toeplitz"]
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "2076c85e0e68ecb5b1d1b957ce2813503c0c0a0ab48fcb968da0600bf204a103"
+content-hash = "d85af0cbbfa6fc7da3dcbbc418e9d078b56fd62f1cb7c5ffa84ef68020376b2e"
 
 [metadata.files]
 appdirs = [
@@ -533,8 +538,8 @@ attrs = [
     {file = "attrs-21.4.0.tar.gz", hash = "sha256:626ba8234211db98e869df76230a137c4c40a12d72445c45d5f5b716f076e2fd"},
 ]
 blockmatrix = [
-    {file = "blockmatrix-0.1.0-py3-none-any.whl", hash = "sha256:e985d0d34bcceec4b1748d54715a91efed99de1e32038da3be00138ae9f2f3c4"},
-    {file = "blockmatrix-0.1.0.tar.gz", hash = "sha256:71962ddd42cd54e0bf25979d8d927d5e37e6614ea2d1614dd3454efdc5dfaadb"},
+    {file = "blockmatrix-0.2.0-py3-none-any.whl", hash = "sha256:b1a222f1f9a63f2f21da3fa3f58b712c41af4fe44eaad728f3a45f77f66ed5e3"},
+    {file = "blockmatrix-0.2.0.tar.gz", hash = "sha256:ac7f2a64a7779b2959053c8ddc699bf870505bffda62a108ce6b956d00456833"},
 ]
 certifi = [
     {file = "certifi-2021.10.8-py2.py3-none-any.whl", hash = "sha256:d62a0163eb4c2344ac042ab2bdf75399a71a2d8c7d47eac2e2ee91b9d6339569"},
@@ -957,8 +962,8 @@ toeplitz = [
     {file = "toeplitz-0.3.2.tar.gz", hash = "sha256:62a405bb7b5286fcc9ff0122f0af5d95df725687f916a70c908ffd3e11efdcdf"},
 ]
 tomli = [
-    {file = "tomli-2.0.0-py3-none-any.whl", hash = "sha256:b5bde28da1fed24b9bd1d4d2b8cba62300bfb4ec9a6187a957e8ddb9434c5224"},
-    {file = "tomli-2.0.0.tar.gz", hash = "sha256:c292c34f58502a1eb2bbb9f5bbc9a5ebc37bee10ffb8c2d6bbdfa8eb13cc14e1"},
+    {file = "tomli-2.0.1-py3-none-any.whl", hash = "sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc"},
+    {file = "tomli-2.0.1.tar.gz", hash = "sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f"},
 ]
 urllib3 = [
     {file = "urllib3-1.26.8-py2.py3-none-any.whl", hash = "sha256:000ca7f471a233c2251c6c7023ee85305721bfdf18621ebff4fd17a8653427ed"},

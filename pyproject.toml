@@ -9,7 +9,7 @@ python = "^3.8"
 mne = "^0.24.1"
 numpy = "^1.22.1"
 pandas = "^1.4.0"
-blockmatrix = "^0.1.0"
+blockmatrix = "^0.2.0"
 toeplitz = {version="^0.3.2", optional = true}
 scikit-learn = "^1.0"
 moabb = "^0.4.4"
