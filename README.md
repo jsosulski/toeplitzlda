@@ -22,16 +22,17 @@ apt install python3-pip python3-venv
 
 0. (Optional) Install fortran Compiler. On ubuntu: `apt install gfortran`
 1. Create virtual environment: `python3 -m venv toeplitzlda_venv`
-2. Activate virtual environment: `source toeplitzlda_venv/bin/activate` 2b. Update pip:
-   `pip install --upgrade pip`
-3. Install toeplitzlda: `pip install toeplitzlda[solver]`, if you dont have a fortran
+2. Activate virtual environment: `source toeplitzlda_venv/bin/activate`
+3. Update pip: `pip install --upgrade pip`
+4. Install numpy: `pip install numpy`
+5. Install toeplitzlda: `pip install toeplitzlda[solver]`, if you dont have a fortran
    compiler: `pip install toeplitzlda`
 
 ### Check if everything works
 
 Either clone this repo or just download the `scripts/example_toeplitz_lda.py` file and run
 it: `python example_toeplitz_lda.py`. Note that this will automatically download EEG data
-with a size of around
+with a size of around 650MB.
 
 ## Development Setup
 

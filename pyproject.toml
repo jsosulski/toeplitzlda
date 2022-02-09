@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "toeplitzlda"
-version = "0.1.1"
+version = "0.1.2"
 description = "Implementation of LDA using a block-Toeplitz structured covariance matrix for stationary spatiotemporal data."
 authors = ["Jan Sosulski <mail@jan-sosulski.de>"]
 
@@ -23,4 +23,3 @@ solver = ["toeplitz"]
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
-
