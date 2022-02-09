@@ -1,17 +1,16 @@
+from pathlib import Path
+
 import mne
+from blockmatrix import linear_taper
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.metrics import roc_auc_score, balanced_accuracy_score
+from sklearn.metrics import balanced_accuracy_score, roc_auc_score
 from sklearn.pipeline import make_pipeline
 
 from toeplitzlda.classification import (
+    EpochsVectorizer,
     ShrinkageLinearDiscriminantAnalysis,
     ToeplitzLDA,
-    EpochsVectorizer,
 )
-from blockmatrix import linear_taper
-
-from pathlib import Path
-
 from toeplitzlda.classification.covariance import ToepTapLW
 from toeplitzlda.usup_replay.llp import LearningFromLabelProportions
 from toeplitzlda.usup_replay.visual_speller import (
@@ -57,12 +56,17 @@ clfs["sup"]["toeplitz_lda"] = make_pipeline(
 )
 
 # Straightforward use toeplitz lda with fortran solver
-clfs["sup"]["toeplitz_lda_fortran"] = make_pipeline(
-    EpochsVectorizer(
-        select_ival=[0.05, 0.7],
-    ),
-    ToeplitzLDA(n_channels=nch, use_fortran_solver=True),
-)
+try:
+    import toeplitz
+
+    clfs["sup"]["toeplitz_lda_fortran"] = make_pipeline(
+        EpochsVectorizer(
+            select_ival=[0.05, 0.7],
+        ),
+        ToeplitzLDA(n_channels=nch, use_fortran_solver=True),
+    )
+except:
+    print("Skipping LDA with fortran solver, as it is not installed.")
 
 # Can also be used manually using our SLDA implementation
 clfs["sup"]["slda_with_toeplitz"] = make_pipeline(
