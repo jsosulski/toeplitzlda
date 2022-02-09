@@ -1,10 +1,8 @@
 # ToeplitzLDA
 
-This is an anonymized version of this repository without `.git`
-
-Code for the ToeplitzLDA classifier proposed in (TODO insert reference).
+Code for the ToeplitzLDA classifier proposed in [here](https://arxiv.org/abs/2202.02001).
 The classifier conforms sklearn and can be used as a drop-in replacement for other LDA classifiers.
-For usage refer to the learning from label proportions (LLP) example or the benchmark scripts.
+For usage refer to the learning from label proportions (LLP) example or the example script.
 
 Note we used Ubuntu 20.04 with python3.8 to generate our results.
 
