@@ -365,7 +365,7 @@ for sub in all_subjects:
                         fit_time = time.time() - start
                         # print(f"Fit time {ckey}: {fit_time}")
                 cur_X = cur_epo
-                pred = clf.predict(cur_X)
+                pred = clf.decision_function(cur_X)
                 (
                     pred_letter[ckey],
                     earliest_correct,

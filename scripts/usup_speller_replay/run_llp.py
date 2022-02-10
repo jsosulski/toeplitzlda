@@ -252,7 +252,7 @@ for sub in range(1, 1 + n_subs):
     for block in range(1, 4):
         print(f"Subject {sub}, block {block}")
         print(f" Loading Data")
-        epochs = get_llp_epochs(sub, block, use_cache=False)
+        epochs, _ = get_llp_epochs(sub, block, use_cache=False)
         if epochs is None:
             continue
         print(f" Starting evaluation")
@@ -334,7 +334,7 @@ for sub in range(1, 1 + n_subs):
                 else:
                     clf.fit(X, s)
                 cur_X = cur_epo
-                pred = clf.predict(cur_X)
+                pred = clf.decision_function(cur_X)
                 (
                     pred_letter[ckey],
                     earliest_correct,

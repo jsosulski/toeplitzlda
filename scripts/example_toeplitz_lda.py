@@ -40,7 +40,7 @@ else:
 nch = len(epochs.ch_names)
 # %%
 # Train on first letter
-e_train = epochs[0 : (68 * 1)]
+e_train = epochs[0 : (68 * 2)]
 llp_train, labels_train = seq_labels_from_epoch(e_train)
 # Test on letters 31-63
 e_test = epochs[(68 * 30) :]
@@ -69,7 +69,7 @@ except:
     print("Skipping LDA with fortran solver, as it is not installed.")
 
 # Can also be used manually using our SLDA implementation
-clfs["sup"]["slda_with_toeplitz"] = make_pipeline(
+clfs["sup"]["our_slda_with_toeplitz"] = make_pipeline(
     EpochsVectorizer(
         select_ival=[0.05, 0.7],
     ),
@@ -79,19 +79,11 @@ clfs["sup"]["slda_with_toeplitz"] = make_pipeline(
 )
 
 # Normal SLDA our implementation
-clfs["sup"]["our_s_lda"] = make_pipeline(
+clfs["sup"]["our_slda"] = make_pipeline(
     EpochsVectorizer(
         select_ival=[0.05, 0.7],
     ),
     ShrinkageLinearDiscriminantAnalysis(n_channels=nch),
-)
-
-# Compare with plain sklearn
-clfs["sup"]["skl_lda_shrinkage_auto"] = make_pipeline(
-    EpochsVectorizer(
-        select_ival=[0.05, 0.7],
-    ),
-    LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto"),
 )
 
 # Use provided covariance estimator to improve sklearn lda
@@ -104,7 +96,15 @@ clfs["sup"]["skl_lda_toep"] = make_pipeline(
     ),
 )
 
-# Currently not yet implemented in upstream sklearn
+# Compare with plain sklearn
+clfs["sup"]["skl_slda"] = make_pipeline(
+    EpochsVectorizer(
+        select_ival=[0.05, 0.7],
+    ),
+    LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto"),
+)
+
+# # Currently not yet implemented in upstream sklearn
 # clfs["sup"]["skl_lda_toep_pooled"] = make_pipeline(
 #     EpochsVectorizer(
 #         select_ival=[0.05, 0.7],
@@ -162,12 +162,10 @@ for cat in clfs:
     bal_accs[cat] = dict()
     for k in clfs[cat]:
         print(f" {cat}.{k}")
-        roc_aucs[cat][k] = roc_auc_score(
-            labels_test, clfs[cat][k].decision_function(e_test)
-        )
-        bal_accs[cat][k] = balanced_accuracy_score(
-            labels_test, clfs[cat][k].predict(e_test)
-        )
+        y_df = clfs[cat][k].decision_function(e_test)
+        roc_aucs[cat][k] = roc_auc_score(labels_test, y_df)
+        y_pred = clfs[cat][k].predict(e_test)
+        bal_accs[cat][k] = balanced_accuracy_score(labels_test, y_pred)
 
 print("\nScores\n======")
 print("\n AUCs\n")
@@ -175,10 +173,6 @@ for cat in clfs:
     for k in clfs[cat]:
         print(f" {cat}.{k}: {roc_aucs[cat][k]:.4f}")
 
-print(
-    "\n!!! NOTE: we do not use skl method of choosing maximal class-dimension but instead "
-    "traditional bias selection. This leads to bad balanced accuracy with toeplitz classifiers !!!"
-)
 print("\n Balanced acc\n")
 for cat in clfs:
     for k in clfs[cat]:

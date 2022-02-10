@@ -6,7 +6,7 @@ import numpy as np
 import sklearn
 import sklearn.linear_model
 import sklearn.utils.multiclass
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
 
 from blockmatrix import (
     SpatioTemporalMatrix,
@@ -15,6 +15,8 @@ from blockmatrix import (
     fortran_cov_mean_transformation,
 )
 from sklearn.preprocessing import StandardScaler
+from sklearn.utils.extmath import safe_sparse_dot
+from sklearn.utils.validation import check_is_fitted, check_X_y
 
 from toeplitzlda.classification.covariance import calc_n_times
 
@@ -163,8 +165,8 @@ class EpochsVectorizer(BaseEstimator, TransformerMixin):
 
 # corresponds to train_RLDAshrink.m and clsutil_shrinkage.m from bbci_public
 class ShrinkageLinearDiscriminantAnalysis(
-    sklearn.base.BaseEstimator,
-    sklearn.discriminant_analysis.LinearClassifierMixin,
+    ClassifierMixin,
+    BaseEstimator,
 ):
     """SLDA Implementation with bells and whistles and a lot of options."""
 
@@ -204,15 +206,16 @@ class ShrinkageLinearDiscriminantAnalysis(
 
     def fit(self, X_train, y, oracle_data=None):
         # Section: Basic setup
+        check_X_y(X_train, y)
+        self.classes_ = sklearn.utils.multiclass.unique_labels(y)
         if self.calculate_oracle_mean is None:
             oracle_data = None
-        self.classes_ = sklearn.utils.multiclass.unique_labels(y)
-        if set(self.classes_) != {0, 1}:
-            raise ValueError("currently only binary class supported")
-        assert len(X_train) == len(y)
+        # if set(self.classes_) != {0, 1}:
+        #     raise ValueError("currently only binary class supported")
+        # assert len(X_train) == len(y)
         xTr = X_train.T
 
-        n_classes = 2
+        n_classes = len(self.classes_)
         if self.priors is None:
             # here we deviate from the bbci implementation and
             # use the sample priors by default
@@ -236,9 +239,9 @@ class ShrinkageLinearDiscriminantAnalysis(
                 gamma=self.fixed_gamma,
             )
         else:
-            n_classes = 2
+            # n_classes = 2
             C_cov = np.zeros((xTr.shape[0], xTr.shape[0]))
-            for cur_class in range(n_classes):
+            for cur_class in self.classes_:
                 class_idxs = y == cur_class
                 x_slice = X[:, class_idxs]
                 C_cov += priors[cur_class] * shrinkage(x_slice)[0]
@@ -275,21 +278,25 @@ class ShrinkageLinearDiscriminantAnalysis(
             C_cov = C_cov_new
 
         # w = np.linalg.lstsq(C_cov, cl_mean, rcond=None)[0]
-        if n_classes == 2:
-            cl_mean = cl_mean[:, 1] - cl_mean[:, 0]
-            prior_offset = np.log(priors[1] / priors[0])
-        else:
-            prior_offset = np.log(priors)
+        # if n_classes == 2:
+        #     cl_mean = cl_mean[:, 1] - cl_mean[:, 0]
+        #     prior_offset = np.log(priors[1] / priors[0])
+        # else:
+        prior_offset = np.log(priors)
 
         # Numpy uses more cores, fortran library only one
         # with threadpoolctl.threadpool_limits(limits=1):
         if self.use_fortran_solver:
-            fcov, fmean = fortran_cov_mean_transformation(
-                C_cov, cl_mean, nch=self.n_channels, ntim=nt
-            )
-            st = time.time()
-            w = fortran_block_levinson(fcov, fmean, transform_A=False)
-            self.fit_time_ = time.time() - st
+            # TODO implement transformation for mean.ndim == 2
+            w = np.empty_like(cl_mean)
+            self.fit_time_ = 0
+            for ci in range(w.shape[1]):
+                fcov, fmean = fortran_cov_mean_transformation(
+                    C_cov, cl_mean[:, ci], nch=self.n_channels, ntim=nt
+                )
+                st = time.time()
+                w[:, ci] = fortran_block_levinson(fcov, fmean, transform_A=False)
+                self.fit_time_ += time.time() - st
         else:
             st = time.time()
             w = np.linalg.solve(C_cov, cl_mean)
@@ -297,8 +304,56 @@ class ShrinkageLinearDiscriminantAnalysis(
         w = w / np.linalg.norm(w) if self.unit_w else w
         b = -0.5 * np.sum(cl_mean * w, axis=0).T + prior_offset
 
-        self.coef_ = w.reshape((1, -1))
+        self.coef_ = w.T  # .reshape((1, -1))
         self.intercept_ = b
+
+    def decision_function(self, X):
+        """
+        Predict confidence scores for samples.
+
+        The confidence score for a sample is proportional to the signed
+        distance of that sample to the hyperplane.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix} of shape (n_samples, n_features)
+            The data matrix for which we want to get the confidence scores.
+
+        Returns
+        -------
+        scores : ndarray of shape (n_samples,) or (n_samples, n_classes)
+            Confidence scores per `(n_samples, n_classes)` combination. In the
+            binary case, confidence score for `self.classes_[1]` where >0 means
+            this class would be predicted.
+        """
+        check_is_fitted(self)
+
+        X = self._validate_data(X, accept_sparse="csr", reset=False)
+        scores = safe_sparse_dot(X, self.coef_.T, dense_output=True) + self.intercept_
+        if scores.shape[1] == 2:
+            scores = scores[:, 1] - scores[:, 0]
+        return scores.ravel() if scores.ndim > 1 else scores
+
+    def predict(self, X):
+        """
+        Predict class labels for samples in X.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix} of shape (n_samples, n_features)
+            The data matrix for which we want to get the predictions.
+
+        Returns
+        -------
+        y_pred : ndarray of shape (n_samples,)
+            Vector containing the class labels for each sample.
+        """
+        scores = self.decision_function(X)
+        if len(scores.shape) == 1:
+            indices = (scores > 0).astype(int)
+        else:
+            indices = scores.argmax(axis=1)
+        return self.classes_[indices]
 
     def predict_proba(self, X):
         """Estimate probability.
