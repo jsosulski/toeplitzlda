@@ -38,12 +38,12 @@ else:
     print("Loading cached")
     epochs = mne.read_epochs(cache_f)
 nch = len(epochs.ch_names)
+epos_per_letter = 68
 # %%
-# Train on first letter
-e_train = epochs[0 : (68 * 2)]
+e_train = epochs[0 : (epos_per_letter * 2)]
 llp_train, labels_train = seq_labels_from_epoch(e_train)
 # Test on letters 31-63
-e_test = epochs[(68 * 30) :]
+e_test = epochs[(epos_per_letter * 30) :]
 _, labels_test = seq_labels_from_epoch(e_test)
 clfs = dict(sup=dict(), usup=dict())
 
