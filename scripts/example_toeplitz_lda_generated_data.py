@@ -1,17 +1,14 @@
 from typing import Iterable
 
 import numpy as np
-from blockmatrix import linear_taper, SpatioTemporalMatrix
+from blockmatrix import SpatioTemporalMatrix, linear_taper
 from sklearn.datasets import make_spd_matrix
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.metrics import balanced_accuracy_score, roc_auc_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder
 
-from toeplitzlda.classification import (
-    ShrinkageLinearDiscriminantAnalysis,
-    ToeplitzLDA,
-)
+from toeplitzlda.classification import ShrinkageLinearDiscriminantAnalysis, ToeplitzLDA
 from toeplitzlda.classification.covariance import ToepTapLW
 
 np.random.seed(123)
@@ -159,7 +156,7 @@ for cat in clfs:
     for k in clfs[cat]:
         print(f" {cat}.{k}: {roc_aucs[cat][k]:.4f}")
 
-print("\n Balanced acc\n")
+print("\n Balanced acc (not a good indicator for BCI performance)\n")
 for cat in clfs:
     for k in clfs[cat]:
         print(f" {cat}.{k}: {bal_accs[cat][k]:.4f}")

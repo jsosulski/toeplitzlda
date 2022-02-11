@@ -517,13 +517,13 @@ optional = false
 python-versions = "*"
 
 [extras]
-neuro = ["mne", "moabb", "pandas"]
+neuro = ["mne", "moabb", "pandas", "seaborn"]
 solver = ["toeplitz"]
 
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "644d5e44d84a9ae5f374cbf9f01aab9fdefe0b96823340c7634b8b37772c7aa4"
+content-hash = "4ba0a7ee2035355acd052c1dae11e9a5a2c4573e752918116660d90f1aa796f3"
 
 [metadata.files]
 appdirs = [

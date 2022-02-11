@@ -5,8 +5,8 @@ import zipfile
 from abc import ABC
 from datetime import datetime, timezone
 
-import mne
 import numpy as np
+import mne
 from moabb.datasets import download as dl
 from moabb.datasets.base import BaseDataset
 

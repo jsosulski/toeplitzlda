@@ -9,17 +9,18 @@ python = "^3.8"
 numpy = "^1.22.1"
 blockmatrix = "^0.2.0"
 scikit-learn = "^1.0"
-toeplitz = {version="^0.3.2", optional = true}
+toeplitz = {version="0.3.2", optional = true}
 pandas = {version="^1.4.0", optional = true}
 mne = {version="^0.24.1", optional = true}
 moabb = {version="^0.4.4", optional = true}
+seaborn = {version="^0.11.2", optional = true}
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
 
 [tool.poetry.extras]
 solver = ["toeplitz"]
-neuro = ["mne", "moabb", "pandas"]
+neuro = ["mne", "moabb", "pandas", "seaborn"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

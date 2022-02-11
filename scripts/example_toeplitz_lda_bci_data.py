@@ -1,6 +1,14 @@
 from pathlib import Path
 
-import mne
+try:
+    import mne
+except ImportError:
+    print(
+        "You need to install toeplitzlda with neuro extras to run examples "
+        "with real EEG data, i.e. pip install toeplitzlda[neuro]"
+    )
+    exit(1)
+
 from blockmatrix import linear_taper
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.metrics import balanced_accuracy_score, roc_auc_score
@@ -17,6 +25,7 @@ from toeplitzlda.usup_replay.visual_speller import (
     VisualMatrixSpellerLLPDataset,
     seq_labels_from_epoch,
 )
+
 
 mne.set_log_level("ERROR")
 

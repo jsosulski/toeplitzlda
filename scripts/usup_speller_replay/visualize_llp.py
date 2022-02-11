@@ -3,8 +3,16 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
+
+try:
+    import pandas as pd
+    import seaborn as sns
+except ImportError:
+    print(
+        "You need to install toeplitzlda with neuro extras to run examples "
+        "with real EEG data, i.e. pip install toeplitzlda[neuro]"
+    )
+    exit(1)
 from matplotlib.backends.backend_pdf import PdfPages
 
 plt.rcParams["figure.dpi"] = 200
@@ -24,7 +32,6 @@ lowpass_freq_str = "8hz"
 toep_td = 27
 slda_td = 6
 
-# set this to False for ICML
 plot_titles = False
 colored_labels = True
 

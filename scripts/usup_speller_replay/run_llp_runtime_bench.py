@@ -3,7 +3,14 @@ import time
 import warnings
 from pathlib import Path
 
-import mne
+try:
+    import mne
+except ImportError:
+    print(
+        "You need to install toeplitzlda with neuro extras to run examples "
+        "with real EEG data, i.e. pip install toeplitzlda[neuro]"
+    )
+    exit(1)
 import numpy as np
 import pandas as pd
 from blockmatrix import linear_taper
