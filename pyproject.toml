@@ -3,6 +3,14 @@ name = "toeplitzlda"
 version = "0.2.1"
 description = "Implementation of LDA using a block-Toeplitz structured covariance matrix for stationary spatiotemporal data."
 authors = ["Jan Sosulski <mail@jan-sosulski.de>"]
+keywords = ["linear discriminant analysis", "spatiotemporal data", "ERP", "BCI", "EEG"]
+readme = "README.md"
+license = "BSD-3-Clause"
+homepage = "https://github.com/jsosulski/toeplitzlda"
+repository = "https://github.com/jsosulski/toeplitzlda"
+include = [
+	"LICENSE"
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
@@ -21,6 +29,9 @@ pytest = "^5.2"
 [tool.poetry.extras]
 solver = ["toeplitz"]
 neuro = ["mne", "moabb", "pandas", "seaborn"]
+
+[tool.poetry.urls]
+"Preprint" = "https://arxiv.org/abs/2202.02001"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
