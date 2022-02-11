@@ -28,9 +28,7 @@ package extra `neuro`, i.e. `pip install toeplitzlda` or `pip install toeplitzld
 0. (Optional) Install fortran Compiler. On ubuntu: `apt install gfortran`
 1. Create virtual environment: `python3 -m venv toeplitzlda_venv`
 2. Activate virtual environment: `source toeplitzlda_venv/bin/activate`
-3. Update pip: `pip install --upgrade pip`
-4. Install numpy: `pip install numpy`
-5. Install toeplitzlda: `pip install toeplitzlda[neuro,solver]`, if you dont have a
+3. Install toeplitzlda: `pip install toeplitzlda[neuro,solver]`, if you dont have a
    fortran compiler: `pip install toeplitzlda[neuro]`
 
 ### Check if everything works
