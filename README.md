@@ -51,14 +51,14 @@ your project and then replace sklearns LDA, i.e., instead of:
 
 ```python
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')  # or eigen solver
+clf = LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")  # or eigen solver
 ```
 
 use
 
 ```python
 from toeplitzlda.classification import ToeplitzLDA
-clf = ToeplitzLDA(n_channels=your_n_channels)  # or eigen solver
+clf = ToeplitzLDA(n_channels=your_n_channels)
 ```
 
 where `your_n_channels` is the number of channels of your signal and needs to be provided
@@ -73,7 +73,7 @@ So instead of:
 
 ```python
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')  # or eigen solver
+clf = LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")  # or eigen solver
 ```
 
 you would use
@@ -81,12 +81,9 @@ you would use
 ```python
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from toeplitzlda.classification.covariance import ToepTapLW
-toep_cov = ToepTapLW(n_channels=your_n_channels, n_times="infer")
-clf = LinearDiscriminantAnalysis(solver='lsqr', covariance_estimator=toep_cov)  # or eigen solver
+toep_cov = ToepTapLW(n_channels=your_n_channels)
+clf = LinearDiscriminantAnalysis(solver="lsqr", covariance_estimator=toep_cov)  # or eigen solver
 ```
-
-The `n_times="infer"` parameter tells the estimator to infer the number of times from the
-data, however `n_channels` is required to be provided manually.
 
 ## Development Setup
 

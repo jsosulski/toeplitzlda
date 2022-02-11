@@ -101,7 +101,7 @@ clfs["sup"]["skl_lda_toep"] = make_pipeline(
         select_ival=[0.05, 0.7],
     ),
     LinearDiscriminantAnalysis(
-        solver="lsqr", covariance_estimator=ToepTapLW(n_times="infer", n_channels=nch)
+        solver="lsqr", covariance_estimator=ToepTapLW(n_channels=nch)
     ),
 )
 
@@ -120,7 +120,7 @@ clfs["sup"]["skl_slda"] = make_pipeline(
 #     ),
 #     LinearDiscriminantAnalysis(
 #         solver="lsqr",
-#         covariance_estimator=ToepTapLW(n_times="infer", n_channels=nch),
+#         covariance_estimator=ToepTapLW(n_channels=nch),
 #         pooled_cov=True,
 #     ),
 # )

@@ -97,10 +97,12 @@ class ToepTapLW(LedoitWolf):
 
     def __init__(
         self,
+        n_channels=None,
+        *,
+        n_times="infer",
+        data_is_channel_prime=True,
         standardize=True,
         tapering=linear_taper,
-        n_times=None,
-        n_channels=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -115,6 +117,7 @@ class ToepTapLW(LedoitWolf):
             self.tapering = lambda d, dmax: 1
         self.n_times = n_times
         self.n_channels = n_channels
+        self.data_is_channel_prime = data_is_channel_prime
 
     def fit(self, X, y=None):
         """Fit the covariance model to X.
@@ -161,8 +164,12 @@ class ToepTapLW(LedoitWolf):
 
         nt = calc_n_times(dim, self.n_channels, self.n_times)
         stm = SpatioTemporalMatrix(covariance, n_times=nt, n_chans=self.n_channels)
+        if not self.data_is_channel_prime:
+            stm.swap_primeness()
         stm.force_toeplitz_offdiagonals()
         stm.taper_offdiagonals(self.tapering)
+        if not self.data_is_channel_prime:
+            stm.swap_primeness()
         covariance = stm.mat
         self._set_covariance(covariance)
 

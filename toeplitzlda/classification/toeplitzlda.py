@@ -340,7 +340,7 @@ class ToeplitzLDA(ShrinkageLinearDiscriminantAnalysis):
 
 # This is a very simple implementation of sLDA for didactic purposes
 class PlainLDA(BaseEstimator, ClassifierMixin):
-    """Straightforward SLDA implementation.
+    """Straightforward SLDA implementation mostly for ease of understanding.
 
     In contrast to the other LDAs in this file, this implementation actually uses the bias for
     class prediction. The other classifiers report the class with maximal classifier output, i.e.,
@@ -352,7 +352,7 @@ class PlainLDA(BaseEstimator, ClassifierMixin):
         taper_time=None,
         use_fortran_solver=False,
         n_times=None,
-        n_channels=31,
+        n_channels=None,
         global_cov=False,
     ):
         self.w = None
