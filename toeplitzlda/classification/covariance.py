@@ -163,7 +163,12 @@ class ToepTapLW(LedoitWolf):
         self.shrinkage_ = shrinkage_gamma
 
         nt = calc_n_times(dim, self.n_channels, self.n_times)
-        stm = SpatioTemporalMatrix(covariance, n_times=nt, n_chans=self.n_channels)
+        stm = SpatioTemporalMatrix(
+            covariance,
+            n_times=nt,
+            n_chans=self.n_channels,
+            channel_prime=self.data_is_channel_prime,
+        )
         if not self.data_is_channel_prime:
             stm.swap_primeness()
         stm.force_toeplitz_offdiagonals()
