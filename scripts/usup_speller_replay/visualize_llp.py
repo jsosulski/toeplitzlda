@@ -7,7 +7,6 @@ import pandas as pd
 import seaborn as sns
 from matplotlib.backends.backend_pdf import PdfPages
 
-
 plt.rcParams["figure.dpi"] = 200
 
 sns.set_context("paper")

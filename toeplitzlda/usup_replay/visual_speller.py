@@ -7,11 +7,8 @@ from datetime import datetime, timezone
 
 import mne
 import numpy as np
-import pandas as pd
-
 from moabb.datasets import download as dl
 from moabb.datasets.base import BaseDataset
-
 
 VSPELL_BASE_URL = "https://zenodo.org/record/"
 VISUAL_SPELLER_LLP_URL = VSPELL_BASE_URL + "5831826/files/"

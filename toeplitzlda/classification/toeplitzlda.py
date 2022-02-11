@@ -1,98 +1,29 @@
+from __future__ import annotations
 import time
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING
 
-import mne
 import numpy as np
 import sklearn
 import sklearn.linear_model
 import sklearn.utils.multiclass
-from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
-
 from blockmatrix import (
     SpatioTemporalMatrix,
     fortran_block_levinson,
-    linear_taper,
     fortran_cov_mean_transformation,
+    linear_taper,
 )
-from sklearn.preprocessing import StandardScaler
+from sklearn.base import BaseEstimator, ClassifierMixin, TransformerMixin
 from sklearn.utils.extmath import safe_sparse_dot
 from sklearn.utils.validation import check_is_fitted, check_X_y
 
-from toeplitzlda.classification.covariance import calc_n_times
+from toeplitzlda.classification.covariance import (
+    calc_n_times,
+    shrinkage,
+    subtract_classwise_means,
+)
 
-
-def shrinkage(
-    X: np.ndarray,
-    gamma: Optional[float] = None,
-    T: Optional[np.ndarray] = None,
-    S: Optional[np.ndarray] = None,
-    standardize: bool = True,
-) -> Tuple[np.ndarray, float]:
-    # case for gamma = auto (ledoit-wolf)
-    p, n = X.shape
-
-    if standardize:
-        sc = StandardScaler()  # standardize features
-        X = sc.fit_transform(X.T).T
-    Xn = X - np.repeat(np.mean(X, axis=1, keepdims=True), n, axis=1)
-    if S is None:
-        S = np.matmul(Xn, Xn.T)
-    Xn2 = np.square(Xn)
-    idxdiag = np.diag_indices(p)
-
-    nu = np.mean(S[idxdiag])
-    if T is None:
-        T = nu * np.eye(p, p)
-
-    # Ledoit Wolf
-    V = 1.0 / (n - 1) * (np.matmul(Xn2, Xn2.T) - np.square(S) / n)
-    if gamma is None:
-        gamma = n * np.sum(V) / np.sum(np.square(S - T))
-    if gamma > 1:
-        print("logger.warning('forcing gamma to 1')")
-        gamma = 1
-    elif gamma < 0:
-        print("logger.warning('forcing gamma to 0')")
-        gamma = 0
-    Cstar = (gamma * T + (1 - gamma) * S) / (n - 1)
-    if standardize:  # scale back
-        Cstar = sc.scale_[np.newaxis, :] * Cstar * sc.scale_[:, np.newaxis]
-
-    return Cstar, gamma
-
-
-def subtract_classwise_means(xTr, y, ext_mean=None):
-    n_classes = len(np.unique(y))
-    n_features = xTr.shape[0]
-    X = np.zeros((n_features, 0))
-    cl_mean = np.zeros((n_features, n_classes))
-    for ci, cur_class in enumerate(np.unique(y)):
-        class_idxs = y == cur_class
-        cl_mean[:, ci] = np.mean(xTr[:, class_idxs], axis=1)
-
-        if ext_mean is None:
-            X = np.concatenate(
-                [
-                    X,
-                    xTr[:, class_idxs]
-                    - np.dot(
-                        cl_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))
-                    ),
-                ],
-                axis=1,
-            )
-        else:
-            X = np.concatenate(
-                [
-                    X,
-                    xTr[:, class_idxs]
-                    - np.dot(
-                        ext_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))
-                    ),
-                ],
-                axis=1,
-            )
-    return X, cl_mean
+if TYPE_CHECKING:
+    from mne import BaseEpochs
 
 
 class EpochsVectorizer(BaseEstimator, TransformerMixin):
@@ -112,7 +43,6 @@ class EpochsVectorizer(BaseEstimator, TransformerMixin):
         self.jumping_mean_ivals = jumping_mean_ivals
         self.select_ival = select_ival
         self.averaging_samples = averaging_samples
-        self.input_type = mne.BaseEpochs
         self.rescale_to_uv = rescale_to_uv
         self.scaling = 1e6 if self.rescale_to_uv else 1
         self.pool_times = pool_times
@@ -126,7 +56,7 @@ class EpochsVectorizer(BaseEstimator, TransformerMixin):
         """fit."""
         return self
 
-    def transform(self, X: mne.BaseEpochs):
+    def transform(self, X: BaseEpochs):
         """transform."""
         e = X.copy() if self.copy else X
         if self.to_numpy_only:
@@ -149,9 +79,9 @@ class EpochsVectorizer(BaseEstimator, TransformerMixin):
             X = e.get_data() * self.scaling
             raise ValueError("This should never be entered though.")
         else:
-            assert (
-                False
-            ), "In the constructor, pass either select ival or jumping means."
+            raise ValueError(
+                "In the constructor, pass either select ival or jumping means."
+            )
         if self.mne_scaler is not None:
             X = self.mne_scaler.fit_transform(X)
         if self.permute_channels_and_time and not self.pool_times:
@@ -163,7 +93,6 @@ class EpochsVectorizer(BaseEstimator, TransformerMixin):
         return X
 
 
-# corresponds to train_RLDAshrink.m and clsutil_shrinkage.m from bbci_public
 class ShrinkageLinearDiscriminantAnalysis(
     ClassifierMixin,
     BaseEstimator,
@@ -210,28 +139,28 @@ class ShrinkageLinearDiscriminantAnalysis(
         self.classes_ = sklearn.utils.multiclass.unique_labels(y)
         if self.calculate_oracle_mean is None:
             oracle_data = None
-        # if set(self.classes_) != {0, 1}:
-        #     raise ValueError("currently only binary class supported")
-        # assert len(X_train) == len(y)
         xTr = X_train.T
 
-        n_classes = len(self.classes_)
         if self.priors is None:
             # here we deviate from the bbci implementation and
             # use the sample priors by default
             _, y_t = np.unique(y, return_inverse=True)  # non-negative ints
             priors = np.bincount(y_t) / float(len(y))
-            # self.priors = np.array([1./n_classes] * n_classes)
         else:
             priors = self.priors
 
         # Section: covariance / mean calculation
         X, cl_mean = subtract_classwise_means(xTr, y)
+        # Check if mean information is provided and if so whether to use it only for class-wise
+        # mean estimation or also for the subtraction of class means from the data to estimate the
+        # covariance matrix
         if self.calculate_oracle_mean == "clmean_and_covmean":
             _, cl_mean = subtract_classwise_means(oracle_data["x"].T, oracle_data["y"])
             X, _ = subtract_classwise_means(xTr, y, ext_mean=cl_mean)
         elif self.calculate_oracle_mean == "only_clmean":
             _, cl_mean = subtract_classwise_means(oracle_data["x"].T, oracle_data["y"])
+        # Subtract class-wise means from data and then estimate the covariance or average
+        # class-wise covariance matrices?
         if self.pool_cov:
             C_cov, C_gamma = shrinkage(
                 X,
@@ -239,7 +168,6 @@ class ShrinkageLinearDiscriminantAnalysis(
                 gamma=self.fixed_gamma,
             )
         else:
-            # n_classes = 2
             C_cov = np.zeros((xTr.shape[0], xTr.shape[0]))
             for cur_class in self.classes_:
                 class_idxs = y == cur_class
@@ -257,6 +185,7 @@ class ShrinkageLinearDiscriminantAnalysis(
             stm.swap_primeness()
         if self.enforce_toeplitz:
             stm.force_toeplitz_offdiagonals()
+        # Banding could be realized with a binary taper, so remove?
         if self.banding is not None:
             stm.band_offdiagonals(self.banding)
         if self.tapering is not None:
@@ -277,17 +206,12 @@ class ShrinkageLinearDiscriminantAnalysis(
                 ]
             C_cov = C_cov_new
 
-        # w = np.linalg.lstsq(C_cov, cl_mean, rcond=None)[0]
-        # if n_classes == 2:
-        #     cl_mean = cl_mean[:, 1] - cl_mean[:, 0]
-        #     prior_offset = np.log(priors[1] / priors[0])
-        # else:
         prior_offset = np.log(priors)
 
         # Numpy uses more cores, fortran library only one
         # with threadpoolctl.threadpool_limits(limits=1):
         if self.use_fortran_solver:
-            # TODO implement transformation for mean.ndim == 2
+            # TODO implement transformation for mean.ndim == 2 in block_matrix.py
             w = np.empty_like(cl_mean)
             self.fit_time_ = 0
             for ci in range(w.shape[1]):
@@ -304,7 +228,7 @@ class ShrinkageLinearDiscriminantAnalysis(
         w = w / np.linalg.norm(w) if self.unit_w else w
         b = -0.5 * np.sum(cl_mean * w, axis=0).T + prior_offset
 
-        self.coef_ = w.T  # .reshape((1, -1))
+        self.coef_ = w.T
         self.intercept_ = b
 
     def decision_function(self, X):
@@ -332,7 +256,7 @@ class ShrinkageLinearDiscriminantAnalysis(
         scores = safe_sparse_dot(X, self.coef_.T, dense_output=True) + self.intercept_
         if scores.shape[1] == 2:
             scores = scores[:, 1] - scores[:, 0]
-        return scores.ravel() if scores.ndim > 1 else scores
+        return scores.squeeze()
 
     def predict(self, X):
         """
@@ -395,8 +319,9 @@ class ShrinkageLinearDiscriminantAnalysis(
 class ToeplitzLDA(ShrinkageLinearDiscriminantAnalysis):
     def __init__(
         self,
-        n_times="infer",
         n_channels=None,
+        *,
+        n_times="infer",
         data_is_channel_prime=True,
         use_fortran_solver=False,
     ):
@@ -410,3 +335,104 @@ class ToeplitzLDA(ShrinkageLinearDiscriminantAnalysis):
             tapering=linear_taper,
             enforce_toeplitz=True,
         )
+
+
+# This is a very simple implementation of sLDA for didactic purposes
+class PlainLDA(BaseEstimator, ClassifierMixin):
+    """Straightforward SLDA implementation.
+
+    In contrast to the other LDAs in this file, this implementation actually uses the bias for
+    class prediction. The other classifiers report the class with maximal classifier output, i.e.,
+    output from decision_function."""
+
+    def __init__(
+        self,
+        toeplitz_time=False,
+        taper_time=None,
+        use_fortran_solver=False,
+        n_times=None,
+        n_channels=31,
+        global_cov=False,
+    ):
+        self.w = None
+        self.b = None
+        self.n_times = n_times
+        self.n_channels = n_channels
+        self.toeplitz_time = toeplitz_time
+        self.taper_time = taper_time
+        self.use_fortran_solver = use_fortran_solver
+        self.global_cov = global_cov
+
+        self.mu_T = None
+        self.mu_NT = None
+
+        self.stm_info = None
+
+    def fit(self, X, y):
+        """
+        Parameters
+        ----------
+        X: np.ndarray
+            Input data of shape (n_samples, n_chs, n_time)
+        y: np.ndarray
+            Actual labels of X
+        """
+
+        X = X.reshape(X.shape[0], -1)
+        self.classes_ = np.unique(y)
+        if set(self.classes_) != {0, 1}:
+            raise ValueError(
+                "This LDA only supports binary classification. Use one of the other classifiers "
+                "for multi-class settings."
+            )
+
+        mu_T = np.mean(X[np.where(y == 1)], axis=0)
+        mu_NT = np.mean(X[np.where(y == 0)], axis=0)
+
+        # Subtract class-means unless we want to ignore them
+        if not self.global_cov:
+            X = subtract_classwise_means(X.T, y)[0].T
+        C_cov, gamma = shrinkage(X.T)
+
+        # ToeplitzLDA specific code BEGIN
+        nt = calc_n_times(C_cov.shape[0], self.n_channels, self.n_times)
+        stm = SpatioTemporalMatrix(C_cov, n_chans=nt, n_times=self.n_times)
+
+        if self.toeplitz_time:
+            stm.force_toeplitz_offdiagonals()
+        if self.taper_time is not None:
+            stm.taper_offdiagonals(self.taper_time)
+
+        self.stored_stm = stm
+        C_cov = stm.mat
+        # ToeplitzLDA specific code END
+
+        C_diff = mu_T - mu_NT
+        C_mean = 0.5 * (mu_T + mu_NT)
+
+        if self.use_fortran_solver:
+            if not self.toeplitz_time:
+                raise ValueError(
+                    "Cannot use fortran solver without block-Toeplitz structure"
+                )
+            C_w = fortran_block_levinson(
+                C_cov, C_diff, nch=self.n_channels, ntim=self.n_times
+            )
+        else:
+            C_w = np.linalg.solve(C_cov, C_diff)
+        C_b = np.dot(-C_w.T, C_mean)
+
+        self.w = C_w.reshape((1, -1))
+        self.b = C_b
+
+        self.mu_T = mu_T
+        self.mu_NT = mu_NT
+
+        return self
+
+    def decision_function(self, X: np.ndarray) -> np.ndarray:
+        X = X.reshape(X.shape[0], -1)
+        return np.dot(X, self.w.T) + self.b
+
+    def predict(self, X: np.ndarray):
+        return self.decision_function(X) > 0

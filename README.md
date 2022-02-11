@@ -20,19 +20,29 @@ apt install python3-pip python3-venv
 
 ### Python package installation
 
+In this setup, we assume you want to run the examples that actually make use of real EEG
+data or the actual unsupervised speller replay. If you only want to employ `ToeplitzLDA`
+in your own spatiotemporal data / without `mne` and `moabb` then you can remove the
+package extra `neuro`, i.e. `pip install toeplitzlda` or `pip install toeplitzlda[solver]`
+
 0. (Optional) Install fortran Compiler. On ubuntu: `apt install gfortran`
 1. Create virtual environment: `python3 -m venv toeplitzlda_venv`
 2. Activate virtual environment: `source toeplitzlda_venv/bin/activate`
 3. Update pip: `pip install --upgrade pip`
 4. Install numpy: `pip install numpy`
-5. Install toeplitzlda: `pip install toeplitzlda[solver]`, if you dont have a fortran
-   compiler: `pip install toeplitzlda`
+5. Install toeplitzlda: `pip install toeplitzlda[neuro,solver]`, if you dont have a
+   fortran compiler: `pip install toeplitzlda[neuro]`
 
 ### Check if everything works
 
-Either clone this repo or just download the `scripts/example_toeplitz_lda.py` file and run
-it: `python example_toeplitz_lda.py`. Note that this will automatically download EEG data
-with a size of around 650MB.
+Either clone this repo or just download the `scripts/example_toeplitz_lda_bci_data.py`
+file and run it: `python example_toeplitz_lda.py`. Note that this will automatically
+download EEG data with a size of around 650MB.
+
+Alternatively, you can use the `scripts/example_toeplitz_lda_generated_data.py` where
+artificial data is generated. Note however, that only stationary background noise is
+modeled and no interfering artifacts as is the case in, e.g., real EEG data. As a result,
+the 'overfit' effect of traditional slda on these artifacts is reduced.
 
 ## Development Setup
 
@@ -61,3 +71,12 @@ cluster. The public datasets (including the LLP datasets) total a size of approx
 120GB.
 
 BLOCKING TODO: How should we handle the private datasets?
+
+## FAQ
+
+### Why is my classification performance for my stationary spatiotemporal data really bad?
+
+Check if your data is in _channel-prime_ order, i.e., in the flattened feature vector, you
+first enumerate over all channels (or some other spatially distributed sensors) for the
+first time point and then for the second time point and so on. If this is not the case,
+tell the classifier: e.g. `ToeplitzLDA(n_channels=16, data_is_channel_prime=False)`

@@ -6,19 +6,20 @@ authors = ["Jan Sosulski <mail@jan-sosulski.de>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-mne = "^0.24.1"
 numpy = "^1.22.1"
-pandas = "^1.4.0"
 blockmatrix = "^0.2.0"
-toeplitz = {version="^0.3.2", optional = true}
 scikit-learn = "^1.0"
-moabb = "^0.4.4"
+toeplitz = {version="^0.3.2", optional = true}
+pandas = {version="^1.4.0", optional = true}
+mne = {version="^0.24.1", optional = true}
+moabb = {version="^0.4.4", optional = true}
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
 
 [tool.poetry.extras]
 solver = ["toeplitz"]
+neuro = ["mne", "moabb", "pandas"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -8,15 +8,14 @@ import pandas as pd
 from blockmatrix import linear_taper
 from sklearn.metrics import roc_auc_score
 from sklearn.pipeline import make_pipeline
-from toeplitzlda.usup_replay.llp import LearningFromLabelProportions
 
+from toeplitzlda.classification.toeplitzlda import EpochsVectorizer
+from toeplitzlda.usup_replay.llp import LearningFromLabelProportions
 from toeplitzlda.usup_replay.visual_speller import (
     VisualMatrixSpellerLLPDataset,
     VisualMatrixSpellerMixDataset,
     seq_labels_from_epoch,
 )
-
-from toeplitzlda.classification.toeplitzlda import EpochsVectorizer
 
 mne.set_log_level("INFO")
 

@@ -1,8 +1,83 @@
+from typing import Optional, Tuple
+
 import numpy as np
 from blockmatrix import SpatioTemporalMatrix, linear_taper
 from sklearn import config_context
 from sklearn.covariance import LedoitWolf, ledoit_wolf
 from sklearn.preprocessing import StandardScaler
+
+
+def shrinkage(
+    X: np.ndarray,
+    gamma: Optional[float] = None,
+    T: Optional[np.ndarray] = None,
+    S: Optional[np.ndarray] = None,
+    standardize: bool = True,
+) -> Tuple[np.ndarray, float]:
+    p, n = X.shape
+
+    if standardize:
+        sc = StandardScaler()
+        X = sc.fit_transform(X.T).T
+    Xn = X - np.repeat(np.mean(X, axis=1, keepdims=True), n, axis=1)
+    if S is None:
+        S = np.matmul(Xn, Xn.T)
+    Xn2 = np.square(Xn)
+    idxdiag = np.diag_indices(p)
+
+    nu = np.mean(S[idxdiag])
+    if T is None:
+        T = nu * np.eye(p, p)
+
+    # Ledoit Wolf
+    V = 1.0 / (n - 1) * (np.matmul(Xn2, Xn2.T) - np.square(S) / n)
+    if gamma is None:
+        gamma = n * np.sum(V) / np.sum(np.square(S - T))
+    if gamma > 1:
+        print("logger.warning('forcing gamma to 1')")
+        gamma = 1
+    elif gamma < 0:
+        print("logger.warning('forcing gamma to 0')")
+        gamma = 0
+    Cstar = (gamma * T + (1 - gamma) * S) / (n - 1)
+    if standardize:  # scale back
+        Cstar = sc.scale_[np.newaxis, :] * Cstar * sc.scale_[:, np.newaxis]
+
+    return Cstar, gamma
+
+
+def subtract_classwise_means(xTr, y, ext_mean=None):
+    n_classes = len(np.unique(y))
+    n_features = xTr.shape[0]
+    X = np.zeros((n_features, 0))
+    cl_mean = np.zeros((n_features, n_classes))
+    for ci, cur_class in enumerate(np.unique(y)):
+        class_idxs = y == cur_class
+        cl_mean[:, ci] = np.mean(xTr[:, class_idxs], axis=1)
+
+        if ext_mean is None:
+            X = np.concatenate(
+                [
+                    X,
+                    xTr[:, class_idxs]
+                    - np.dot(
+                        cl_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))
+                    ),
+                ],
+                axis=1,
+            )
+        else:
+            X = np.concatenate(
+                [
+                    X,
+                    xTr[:, class_idxs]
+                    - np.dot(
+                        ext_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))
+                    ),
+                ],
+                axis=1,
+            )
+    return X, cl_mean
 
 
 def calc_n_times(dim, n_channels, n_times):
@@ -34,9 +109,9 @@ class ToepTapLW(LedoitWolf):
         if self.tapering is None:
             print(
                 "WARNING: using block-Toeplitz structure without tapering can lead to numerical "
-                "instabilities"
+                "instabilities / singular matrices"
             )
-            # Use a no-op taper
+            # Use a no-op taper that always returns 1 as scaling factor
             self.tapering = lambda d, dmax: 1
         self.n_times = n_times
         self.n_channels = n_channels
@@ -69,7 +144,7 @@ class ToepTapLW(LedoitWolf):
             if self.standardize:
                 sc = StandardScaler()
                 X_cent = sc.fit_transform(X_cent)
-            covariance, shrinkage = ledoit_wolf(
+            covariance, shrinkage_gamma = ledoit_wolf(
                 X_cent,
                 assume_centered=True,
                 block_size=self.block_size,
@@ -82,7 +157,7 @@ class ToepTapLW(LedoitWolf):
                 covariance = (
                     sc.scale_[np.newaxis, :] * covariance * sc.scale_[:, np.newaxis]
                 )
-        self.shrinkage_ = shrinkage
+        self.shrinkage_ = shrinkage_gamma
 
         nt = calc_n_times(dim, self.n_channels, self.n_times)
         stm = SpatioTemporalMatrix(covariance, n_times=nt, n_chans=self.n_channels)
