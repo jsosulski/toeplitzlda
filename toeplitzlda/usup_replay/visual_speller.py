@@ -80,6 +80,12 @@ def seq_labels_from_epoch(epo):
     return s[:, 2], l[:, 2]
 
 
+def natural_sort(l):
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [convert(c) for c in re.split("([0-9]+)", key)]
+    return sorted(l, key=alphanum_key)
+
+
 class _BaseVisualMatrixSpellerDataset(BaseDataset, ABC):
     def __init__(
         self,
@@ -189,7 +195,8 @@ class _BaseVisualMatrixSpellerDataset(BaseDataset, ABC):
             "matrixSpeller_Block*_Run*.vhdr",
         )
         subject_paths = glob.glob(run_glob_pattern)
-        return sorted(subject_paths)
+
+        return natural_sort(subject_paths)
 
     @staticmethod
     def _extract_data(data_dir_extracted_path, data_archive_path):

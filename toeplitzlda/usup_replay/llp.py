@@ -86,6 +86,7 @@ class LearningFromLabelProportions(BaseEstimator):
             stm.taper_offdiagonals(self.taper_spatial)
         stm.swap_primeness()
 
+        self.stored_stm = stm
         C_cov = stm.mat
 
         # Compute sequence-wise means
@@ -104,6 +105,8 @@ class LearningFromLabelProportions(BaseEstimator):
         # use reconstructed means to compute w and b
         C_diff = mu_T - mu_NT
         C_mean = 0.5 * (mu_T + mu_NT)
+
+        self.stored_cl_mean = np.vstack([mu_NT, mu_T]).T
 
         if self.use_fortran_solver:
             if not self.toeplitz_time:

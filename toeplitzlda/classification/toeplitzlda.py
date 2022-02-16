@@ -194,6 +194,7 @@ class ShrinkageLinearDiscriminantAnalysis(
         if not self.data_is_channel_prime:
             stm.swap_primeness()
 
+        self.stored_cl_mean = cl_mean
         self.stored_stm = stm
         C_cov = stm.mat
 
