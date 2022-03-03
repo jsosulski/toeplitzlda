@@ -12,6 +12,13 @@ repos:
       - id: check-case-conflict
       - id: mixed-line-ending
 
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v1.2.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [] # optional: list of Conventional Commits types to allow
+
   - repo: https://github.com/psf/black
     rev: 21.5b1
     hooks:
@@ -21,4 +28,5 @@ repos:
     rev: v2.2.1
     hooks:
       - id: prettier
+        stages: [commit]
         args: [--print-width=90, --prose-wrap=always]
