@@ -50,6 +50,7 @@ class EpochsVectorizer(BaseEstimator, TransformerMixin):
         self.to_numpy_only = to_numpy_only
         self.copy = copy
         self.mne_scaler = mne_scaler
+
         if self.select_ival is None and self.jumping_mean_ivals is None:
             raise ValueError("jumping_mean_ivals or select_ival is required")
 
@@ -75,6 +76,7 @@ class EpochsVectorizer(BaseEstimator, TransformerMixin):
             X = new_X
         elif self.select_ival is not None:
             e.crop(tmin=self.select_ival[0], tmax=self.select_ival[1])
+            self.times_ = e.times
             X = e.get_data() * self.scaling
         elif self.pool_times:
             X = e.get_data() * self.scaling
