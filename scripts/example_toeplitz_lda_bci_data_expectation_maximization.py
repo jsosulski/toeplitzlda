@@ -1,11 +1,12 @@
+from copy import deepcopy
+import time
 from pathlib import Path
+import matplotlib.pyplot as plt
 
 from sklearn.mixture._gaussian_mixture import _compute_precision_cholesky
 
-from toeplitzlda.classification.unsupervised import ExternalLDA
-
 import numpy as np
-from blockmatrix import SpatioTemporalMatrix
+from blockmatrix import SpatioTemporalData
 
 try:
     import mne
@@ -16,244 +17,42 @@ except ImportError:
     )
     exit(1)
 
-from blockmatrix import linear_taper
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.metrics import balanced_accuracy_score, roc_auc_score
-from sklearn.pipeline import make_pipeline
-from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
+from sklearn.mixture import GaussianMixture
+import pandas as pd
 
-from toeplitzlda.classification import (
-    EpochsVectorizer,
-    ShrinkageLinearDiscriminantAnalysis,
-    ToeplitzLDA,
-)
+from toeplitzlda.classification import EpochsVectorizer
 from toeplitzlda.classification.covariance import ToepTapLW
-from toeplitzlda.usup_replay.llp import LearningFromLabelProportions
 from toeplitzlda.usup_replay.visual_speller import (
     VisualMatrixSpellerLLPDataset,
-    seq_labels_from_epoch,
     NUMBER_TO_LETTER_DICT,
     VisualMatrixSpellerMixDataset,
 )
 
-
 mne.set_log_level("ERROR")
-
-sub = 3
-block = 1
-dataset = VisualMatrixSpellerMixDataset()
-dataset.subject_list = [sub]
-tmp_f = Path("/tmp/cache")
-tmp_f.mkdir(exist_ok=True)
-cache_f = tmp_f / f"epos_s{sub}_b{block}-epo.fif"
-if not cache_f.exists():
-    print("Preprocessing Data.")
-    epochs, _ = dataset.load_epochs(block_nrs=[block], fband=[0.5, 8], sampling_rate=40)
-    epochs.save(cache_f)
-else:
-    print("Loading cached")
-    epochs = mne.read_epochs(cache_f)
-nch = len(epochs.ch_names)
-epos_per_letter = 68
 # %%
-e_train = epochs[0 : (epos_per_letter * 1)]
-llp_train, labels_train = seq_labels_from_epoch(e_train)
-# Test on letters 31-63
-e_test = epochs[(epos_per_letter * 30) :]
-_, labels_test = seq_labels_from_epoch(e_test)
-clfs = dict(sup=dict(), usup=dict())
+""" Poor man's expectation maximization
 
-# Straightforward use toeplitz lda
-clfs["sup"]["toeplitz_lda"] = make_pipeline(
-    EpochsVectorizer(
-        select_ival=[0.05, 0.7],
-    ),
-    ToeplitzLDA(n_channels=nch),
-)
+This approach does not require any label information. Required information:
+- Which symbols can be spelled?
+- For each epoch: which letters have been highlighted?
 
-# Straightforward use toeplitz lda with fortran solver
-try:
-    import toeplitz
+Assumptions:
+- Similar to LDA: Both classes have the same covariance
+- Underlying are only 2 different distributions, i.e. Target/NonTarget
+"""
 
-    clfs["sup"]["toeplitz_lda_fortran"] = make_pipeline(
-        EpochsVectorizer(
-            select_ival=[0.05, 0.7],
-        ),
-        ToeplitzLDA(n_channels=nch, use_fortran_solver=True),
+
+def get_initialized_gmm(feature_dim=None):
+    gmm_model = GaussianMixture(
+        weights_init=[52 / 68, 16 / 68],
+        n_components=2,
+        covariance_type="tied",
+        means_init=np.zeros((2, feature_dim)),
     )
-except:
-    print("Skipping LDA with fortran solver, as it is not installed.")
-
-# Can also be used manually using our SLDA implementation
-clfs["sup"]["our_slda_with_toeplitz"] = make_pipeline(
-    EpochsVectorizer(
-        select_ival=[0.05, 0.7],
-    ),
-    ShrinkageLinearDiscriminantAnalysis(
-        n_channels=nch, enforce_toeplitz=True, tapering=linear_taper
-    ),
-)
-
-# Normal SLDA our implementation
-clfs["sup"]["our_slda"] = make_pipeline(
-    EpochsVectorizer(
-        select_ival=[0.05, 0.7],
-    ),
-    ShrinkageLinearDiscriminantAnalysis(n_channels=nch),
-)
-
-# Use provided covariance estimator to improve sklearn lda
-clfs["sup"]["skl_lda_toep"] = make_pipeline(
-    EpochsVectorizer(
-        select_ival=[0.05, 0.7],
-    ),
-    LinearDiscriminantAnalysis(
-        solver="lsqr", covariance_estimator=ToepTapLW(n_channels=nch)
-    ),
-)
-
-# Compare with plain sklearn
-clfs["sup"]["skl_slda"] = make_pipeline(
-    EpochsVectorizer(
-        select_ival=[0.05, 0.7],
-    ),
-    LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto"),
-)
-
-# # Currently not yet implemented in upstream sklearn
-# clfs["sup"]["skl_lda_toep_pooled"] = make_pipeline(
-#     EpochsVectorizer(
-#         select_ival=[0.05, 0.7],
-#     ),
-#     LinearDiscriminantAnalysis(
-#         solver="lsqr",
-#         covariance_estimator=ToepTapLW(n_channels=nch),
-#         pooled_cov=True,
-#     ),
-# )
-
-# Unsupervised classifiers, i.e., make use of label proportions, not true labels
-# LLP with proposed block-Toeplitz structure
-clfs["usup"]["llp_toep"] = make_pipeline(
-    EpochsVectorizer(
-        select_ival=[0.05, 0.7],
-    ),
-    LearningFromLabelProportions(
-        toeplitz_time=True, taper_time=linear_taper, n_times="infer", n_channels=nch
-    ),
-)
-
-# LLP with plain sLDA
-clfs["usup"]["llp_slda"] = make_pipeline(
-    EpochsVectorizer(
-        select_ival=[0.05, 0.7],
-    ),
-    LearningFromLabelProportions(n_times="infer", n_channels=nch),
-)
+    return gmm_model
 
 
-print("Fitting supervised...")
-for k in clfs["sup"]:
-    print(f" {k}")
-    clfs["sup"][k].fit(e_train, y=labels_train)
-
-print("Fitting unsupervised...")
-for k in clfs["usup"]:
-    print(f" {k}")
-    clfs["usup"][k].fit(e_train, y=llp_train)
-
-print("Fitting times (NOTE: numpy probably faster due to multi-threading):")
-for cat in clfs:
-    for k in clfs[cat]:
-        c = clfs[cat][k][-1]
-        if hasattr(c, "fit_time_"):
-            print(f" {cat}.{k}: {c.fit_time_*1000} ms")
-        else:
-            print(f" {cat}.{k}: NOT MEASURED")
-
-print("Predicting...")
-roc_aucs = dict()
-bal_accs = dict()
-for cat in clfs:
-    roc_aucs[cat] = dict()
-    bal_accs[cat] = dict()
-    for k in clfs[cat]:
-        print(f" {cat}.{k}")
-        y_df = clfs[cat][k].decision_function(e_test)
-        roc_aucs[cat][k] = roc_auc_score(labels_test, y_df)
-        y_pred = clfs[cat][k].predict(e_test)
-        bal_accs[cat][k] = balanced_accuracy_score(labels_test, y_pred)
-
-print("\nScores\n======")
-print("\n AUCs\n")
-for cat in clfs:
-    for k in clfs[cat]:
-        print(f" {cat}.{k}: {roc_aucs[cat][k]:.4f}")
-
-print("\n Balanced acc\n")
-for cat in clfs:
-    for k in clfs[cat]:
-        print(f" {cat}.{k}: {bal_accs[cat][k]:.4f}")
-
-# %%
-
-# clmean_true = clfs["sup"]["our_slda"][-1].stored_cl_mean
-# clmean_llp = clfs["usup"]["llp_slda"][-1].stored_cl_mean
-#
-# pip = make_pipeline(
-#     EpochsVectorizer(
-#         select_ival=[0.05, 0.7],
-#     ),
-#     GaussianMixture(weights_init=[52/68, 16/68], n_components=2, covariance_type="tied",
-#                     means_init=np.zeros_like(clmean_llp.T)),
-# )
-
-# pip.fit(e_train)
-
-# clmean_gmm = pip[-1].means_.T
-# stm_true = clfs["sup"]["our_slda"][-1].stored_stm
-# stm_glob = clfs["usup"]["llp_slda"][-1].stored_stm
-# stm_gmm = SpatioTemporalMatrix(pip[-1].covariances_, 31, 27)
-# # stm_gmm.taper_offdiagonals()
-# # stm_gmm.force_toeplitz_offdiagonals()
-#
-#
-# error_llp = np.sum((clmean_true - clmean_llp)**2)
-# error_gmm = np.sum((clmean_true - clmean_gmm)**2)
-#
-# print(f"{error_llp=}\n{error_gmm=}")
-#
-# elda = ExternalLDA(means=clmean_gmm, cov=stm_gmm.mat)
-# elda.calc()
-#
-# y_df = elda.decision_function(evec.transform(e_test))
-# roc_auc = roc_auc_score(labels_test, y_df)
-# y_pred = elda.predict(evec.transform(e_test))
-# bal_acc = balanced_accuracy_score(labels_test, y_pred)
-#
-# print(f"{roc_auc=}")
-# %% Poor man's expectation maximization
-
-evec = EpochsVectorizer(select_ival=[0.05, 0.7])
-gmm = GaussianMixture(
-    weights_init=[52 / 68, 16 / 68],
-    n_components=2,
-    covariance_type="tied",
-    means_init=np.zeros((2, evec.transform(e_train[0]).shape[1])),
-)
-
-spellable = [s for s in NUMBER_TO_LETTER_DICT.values() if s != "#"]
-
-
-def idx_except(e, letter):
-    idx = []
-    for i in range(len(e)):
-        if letter not in e[i].event_id:
-            idx.append(i)
-    return idx
-
-
-def true_letter(e):
+def get_true_letter(e):
     evs = list(e["Target"].event_id.keys())
     t_letters = [ev.split("/")[3:] for ev in evs]
     t_let = t_letters[0]
@@ -266,121 +65,285 @@ def true_letter(e):
     return t_let[0]
 
 
-tmp_f = Path("/tmp/cache")
-mne.set_log_level("ERROR")
-tmp_f.mkdir(exist_ok=True)
-dcode = "Mix"
-# TODO FIX THIS SCRIPT
-import pandas as pd
+def softmax(x):
+    return np.exp(x) / np.sum(np.exp(x))
 
+
+# Extending stderr of variance to covariance tapering yields equal performance on small subset
+def stderr_of_variance(n):
+    return np.sqrt(2 / (n - 1))
+
+
+def stderr_taper_factory(n_epos):
+    def stderr_taper(d, dmax):
+        return stderr_of_variance(n_epos * dmax) / stderr_of_variance(n_epos * (dmax - d))
+
+    return stderr_taper
+
+
+# Parameters to change
+dcode = "LLP"
+plot_erp_after_every_letter = False
+debug_prints = False
+sanity_check_use_random_mean = False
+# Idea: instead of using Sigma_T use (Sigma_T - (Mu^T * Mu)) = (Sigma_T - Sigma_B) = Sigma_W ?
+# This should be a better estimate of Within-Scatter. But: in some circumstance not full rank!
+# FIXME: Not implemented yet.
+cov_clmean_correction = True
+
+# Setup/initialize basic variables
+evec = EpochsVectorizer(select_ival=[0.05, 0.7])
+spellable = [s for s in NUMBER_TO_LETTER_DICT.values() if s != "#"]
+n_times = None  # This is set automatically, once data is loaded
+n_channels = None  # This is set automatically, once data is loaded
+tmp_f = Path("/tmp/cache")
+tmp_f.mkdir(exist_ok=True)
 df = pd.DataFrame()
-entry = dict()
-for use_toep in [True, False]:
-    for use_agg_mean in [True, False]:
-        entry["toep"] = use_toep
-        entry["agg_mean"] = use_agg_mean
-        for sub in range(1, 13):
-            entry["sub"] = sub
-            dataset = (
-                VisualMatrixSpellerLLPDataset()
-                if dcode == "LLP"
-                else VisualMatrixSpellerMixDataset()
-            )
-            dataset.subject_list = [sub]
-            for block in range(1, 4):
-                agg_mean = np.zeros((2, 837))
-                entry["block"] = block
-                cache_f = tmp_f / f"{dcode}_s{sub}_b{block}-epo.fif"
-                print(f"Subject {sub}, block {block}")
-                sentence = ""
-                true_sentence = ""
+row = dict()
+rows = list()
+blocks = [1, 2, 3]
+np.random.seed(123)
+
+# Dataset specifics
+if dcode == "Mix":
+    n_letters = 35
+    # Note that Letters 36-70 in MIX are not used, as free spelling was done.
+    # Ground truth for these spelled letters is not conclusively available. (?)
+    true_sentence = "FRANZY JAGT IM TAXI QUER DURCH DAS "
+    subjects = list(range(1, 13))
+    dataset_class = VisualMatrixSpellerMixDataset
+elif dcode == "LLP":
+    n_letters = 63
+    true_sentence = "FRANZY JAGT IM KOMPLETT VERWAHRLOSTEN TAXI QUER DURCH FREIBURG."
+    subjects = list(range(1, 14))
+    dataset_class = VisualMatrixSpellerLLPDataset
+else:
+    raise ValueError(f"Dataset code: {dcode} is not valid")
+
+# DEBUG OVERWRITE
+n_letters = 14
+subjects = [11]
+blocks = [2]
+
+parameter_combinations = [[True, True], [False, True], [True, False], [False, False]]
+
+for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter_combinations):
+    row["toeplitz_covariance"] = use_toeplitz_covariance
+    row["aggregated_mean"] = use_aggregated_mean
+    print(f"Evaluating setting: {dcode=} {use_toeplitz_covariance=} {use_aggregated_mean=}")
+    for sub in subjects:
+        row["subject"] = sub
+        dataset = dataset_class()
+        dataset.subject_list = [sub]
+        for block in blocks:
+            row["block"] = block
+            cache_f = tmp_f / f"{dcode}_s{sub}_b{block}-epo.fif"
+            print(f"Subject {sub}, block {block}")
+            try:
                 if not cache_f.exists():
+                    # Load raw data and preprocess
                     print("Preprocessing Data.")
-                    epochs, _ = dataset.load_epochs(
+                    all_epochs, _ = dataset.load_epochs(
                         block_nrs=[block], fband=[0.5, 8], sampling_rate=40
                     )
-                    epochs.save(cache_f)
+                    all_epochs.save(cache_f)
                 else:
+                    # Use already preprocessed data
                     print("Loading cached")
-                    epochs = mne.read_epochs(cache_f)
-                    epochs.reset_drop_log_selection()
-                for let_i in range(35):
-                    entry["num_let"] = let_i + 1
-                    e_train = epochs[f"Letter_{let_i+1}"]
-                    if len(e_train) != 68:
-                        print(f"WARNING, EPO NOT FULL ({let_i+1}: {len(e_train)})")
-                    true_sentence += true_letter(e_train)
-                    e_train_cum = epochs[0 : np.max(e_train.selection)]
-                    cov_model = (
-                        ToepTapLW(n_channels=31)
-                        if use_toep
-                        else ToepTapLW(n_channels=31, only_lw=True)
+                    all_epochs = mne.read_epochs(cache_f)
+            except:
+                print("Could not load epochs. Skipping this block")
+                continue
+            print("Starting letter processing")
+            all_epochs.reset_drop_log_selection()
+            # Need to obtain feature dimensions from loaded data
+            evec.transform(all_epochs)
+            n_times = len(evec.times_)
+            n_channels = len(all_epochs.ch_names)
+            # Reset variables
+            decoded_sentence = ""
+            aggregated_clmeans = np.zeros((2, n_times * n_channels))
+            for let_i in range(n_letters):
+                letter_evaluation_start_time = time.time()
+                if not debug_prints:
+                    print("!" if (let_i + 1) % 10 == 0 else ".", end="")
+                else:
+                    print(
+                        f" Current letter: {let_i+1} ({dcode=} {use_toeplitz_covariance=} {use_aggregated_mean=})"
                     )
-                    # cov_model = ToepTapLW(n_channels=31, only_lw=True)
-                    cov_model.fit(evec.transform(e_train))
-                    gmm.covariances_ = cov_model.covariance_
-                    gmm.precisions_cholesky_ = _compute_precision_cholesky(
-                        gmm.covariances_, "tied"
+                row["nth_letter"] = let_i + 1
+                # Select epochs only from current letter/trial
+                epo_current_trial = all_epochs[f"Letter_{let_i + 1}"]
+                if len(epo_current_trial) < 68:
+                    print(
+                        f"WARNING, EPO NOT FULL (Letter {let_i+1} has only {len(epo_current_trial)}/68)"
                     )
+                # Has never occured
+                elif len(epo_current_trial) > 68:
+                    print("!!!!!!!! More epochs than allowed. Aborting block. !!!!!!!!")
+                    break
 
-                    e_train.reset_drop_log_selection()
-                    X = evec.transform(e_train)
+                # Select all epochs from current and past letters/trials
+                selected_letters = [f"Letter_{li + 1}" for li in range(let_i + 1)]
+                epo_cumulated_trials = all_epochs[selected_letters]
 
-                    letter_likelihoods = np.empty(len(spellable)) + np.nan
-                    prev_logprob_max = -np.inf
-                    best_means = None
-                    for i, s in enumerate(spellable):
-                        try:
-                            t_epo = e_train[s]
-                        except:
-                            print(f"Could not select for symbol {s} -> does not exist")
-                            continue
-                        nt_idx = [
-                            i for i in e_train.selection if i not in t_epo.selection
-                        ]
-                        nt_epo = e_train[nt_idx]
-                        non_target = evec.transform(nt_epo).mean(0)[None, :]
-                        target = evec.transform(t_epo).mean(0)[None, :]
-                        trial_means = np.vstack([non_target, target])
-                        clmeans = (agg_mean * let_i + trial_means) / (let_i + 1)
-                        gmm.means_ = trial_means if not use_agg_mean else clmeans
-                        logprob = gmm._estimate_log_prob(X)
-                        logprob_diff = logprob[:, 1] - logprob[:, 0]
-                        top_16 = logprob_diff[np.argsort(logprob_diff)[-16:]]
-                        logprob_max = np.sum(top_16)
-                        if logprob_max > prev_logprob_max:
-                            prev_logprob_max = logprob_max
-                            # best_means = clmeans
-                            best_means = trial_means
-                        letter_likelihoods[i] = logprob_max
-                        # print(f"{s}: {logprob_max}")
-                    most_likely_idx = np.argmax(letter_likelihoods)
-                    agg_mean = (agg_mean * let_i + best_means) / (let_i + 1)
-                    sentence += spellable[most_likely_idx]
-                    entry["correct"] = (
-                        spellable[most_likely_idx] == true_sentence[let_i]
+                if debug_prints:
+                    print(f"  Fitting covariance on {len(epo_cumulated_trials)} epochs")
+                cov_model = ToepTapLW(n_channels=n_channels, only_lw=(not use_toeplitz_covariance))
+                cov_model.fit(evec.transform(epo_cumulated_trials))
+                # Store total covariance/scatter. Needed for implementation of only within cov
+                # But that has rank issues for now.
+                total_cov = cov_model.covariance_
+
+                gmm = get_initialized_gmm(feature_dim=n_times * n_channels)
+                gmm.covariances_ = total_cov
+                cholesky_time = time.time()
+                gmm.precisions_cholesky_ = _compute_precision_cholesky(gmm.covariances_, "tied")
+                cholesky_duration = time.time() - cholesky_time
+                if debug_prints:
+                    print(f"  Cholesky decomposition took {cholesky_duration:1.3f} seconds")
+
+                # Set up variables
+                # Reset epoch indexing to 0..67
+                epo_current_trial.reset_drop_log_selection()
+                spellable_likelihoods = np.empty(len(spellable)) + np.nan
+                spellable_num_targets = np.empty(len(spellable))
+                prev_logprob_score = -np.inf
+                best_mean_estimate = None
+                current_trial_X = evec.transform(epo_current_trial)
+
+                # Only needed for sanity check
+                random_means = None
+                # Iterate over all spellable symbols and choose the one producing maximal
+                # likelihoods given the data of the current trial
+                # Potential speedups after first few letters. Only check first X most likely
+                # target letters for new mean assignments etc.
+                for si, s in enumerate(spellable):
+                    try:
+                        t_epo = epo_current_trial[s]
+                    except:
+                        print(f"Could not select for symbol {s} as it does not exist in epos")
+                        continue
+                    # Everything not in t_epo is nontarget
+                    nt_idx = np.setxor1d(t_epo.selection, epo_current_trial.selection)
+                    nt_epo = epo_current_trial[nt_idx]
+                    non_target_mean = np.mean(evec.transform(nt_epo), axis=0)[np.newaxis, :]
+                    target_mean = np.mean(evec.transform(t_epo), axis=0)[np.newaxis, :]
+                    # SANITY CHECK: OVERRIDE MEAN VECTORS WITH RANDOM VECTORS
+                    if sanity_check_use_random_mean and random_means is None:
+                        random_non_target_mean = np.random.multivariate_normal(
+                            np.zeros_like(non_target_mean).squeeze() - 1,
+                            total_cov,
+                            size=len(spellable),
+                        )
+                        random_target_mean = np.random.multivariate_normal(
+                            np.zeros_like(target_mean).squeeze() + 1, total_cov, size=len(spellable)
+                        )
+                        random_means = [random_non_target_mean, random_target_mean]
+                    if sanity_check_use_random_mean:
+                        non_target_mean = random_means[0][si, :]
+                        target_mean = random_means[1][si, :]
+
+                    current_trial_means = np.vstack([non_target_mean, target_mean])
+                    aggregated_trial_means = (aggregated_clmeans * let_i + current_trial_means) / (
+                        let_i + 1
                     )
-                    entry["decoded"] = spellable[most_likely_idx]
-                    entry["true"] = true_sentence[let_i]
-                    df = df.append(entry, ignore_index=True)
+                    if use_aggregated_mean:
+                        gmm.means_ = aggregated_trial_means
+                    else:
+                        gmm.means_ = current_trial_means
 
-                correct_letters = [d == t for d, t in zip(sentence, true_sentence)]
-                print(
-                    f" Decoded: '{sentence}' ({np.sum(correct_letters)}/{len(correct_letters)})"
-                )
-                print(f" True:    '{true_sentence}'")
+                    # For each datapoint, obtain likelihood of belonging to class 0 or 1
+                    logprob_time = time.time()
+                    logprob = gmm._estimate_log_prob(current_trial_X)
+                    logprob_duration = time.time() - logprob_time
+                    # if debug_prints:
+                    #     print(f" Logprob calculation took {logprob_duration:1.3f} seconds")
+                    logprob_diff = logprob[:, 1] - logprob[:, 0]
+                    # Targets were flashed 16 times: get 16 highest likelihood diffs
+                    # TODO: sometimes epochs are not completely loaded due to marker issues. Still take top16?
+                    top_16 = np.sort(logprob_diff)[-16:]
+                    logprob_score = np.sum(top_16)
 
-            df["cumulated_cov"] = False
-            df.to_csv(f"/home/jan/results_em_no_cumu.csv")
+                    # We want to update the aggregated means with the best estimate for the current
+                    # Letter/Trial
+                    if logprob_score > prev_logprob_score:
+                        prev_logprob_score = logprob_score
+                        best_mean_estimate = current_trial_means
+                    spellable_likelihoods[si] = logprob_score
+                    # print(f"{s}: {logprob_max}")
+                # Update the current class mean aggregate with best trial estimate
+                aggregated_clmeans = (aggregated_clmeans * let_i + best_mean_estimate) / (let_i + 1)
+                # Most likely spellable produces the highest likelihood
+                most_likely_idx = np.argmax(spellable_likelihoods)
+                decoded_sentence += spellable[most_likely_idx]
+                letter_evaluation_total_time = time.time() - letter_evaluation_start_time
+                correct = spellable[most_likely_idx] == true_sentence[let_i]
+                # Softmax as approximation of how sure we are, FOR NOW only used as metric.
+                # But: this could be used to inform mean_aggregation, e.g.,
+                # how to weight each trial mean estimate...
+                softmax_best_2 = np.sort(softmax(spellable_likelihoods))[-2:]
+                softmax_best_5 = np.sort(softmax(spellable_likelihoods))[::-1][0:5]
+                softmax_best_5_str = " ".join(map("{:.4f}".format, softmax_best_5))
+                spellable_order = [spellable[i] for i in np.argsort(spellable_likelihoods)][::-1]
+                distance_to_true_letter = spellable_order.index(true_sentence[let_i])
+                print(f" Decoded/Actual:  {spellable[most_likely_idx]}/{true_sentence[let_i]}")
+                print(f"  Softmax top5:                {softmax_best_5_str}")
+                print(f"  Best 5 letters (descending): {spellable_order[:5]}\n")
+                softmax_logratio = np.log10(softmax_best_2[1]) - np.log10(softmax_best_2[0])
+                row["correct"] = correct
+                row["decoded_letter"] = spellable[most_likely_idx]
+                row["true_letter"] = true_sentence[let_i]
+                row["softmax_logratio_to_second"] = softmax_logratio
+                row["evaluation_time"] = letter_evaluation_total_time
+                row["num_epos"] = len(epo_current_trial)
+                row["distance_to_true_letter"] = distance_to_true_letter
+                rows.append(deepcopy(row))
+                if debug_prints:
+                    print(f" Letter took {letter_evaluation_total_time:.3f} seconds to evaluate")
 
-            # gmm.mea
+                # Print erp mean estimates
+                if plot_erp_after_every_letter and hyp_i == 0:
+                    plot_me_channels = ["Pz", "O2"]
+                    f, ax = plt.subplots(
+                        2,
+                        len(plot_me_channels),
+                        figsize=(10, 3.5 * len(plot_me_channels)),
+                        sharey="all",
+                    )
+                    for chi, ch in enumerate(plot_me_channels):
+                        idx_ch = all_epochs.ch_names.index(ch)
+                        for axi, (description, mean) in enumerate(
+                            [
+                                ("current trial", best_mean_estimate),
+                                ("aggregated trials", aggregated_clmeans),
+                            ]
+                        ):
+                            ch_mean = np.array(
+                                [
+                                    SpatioTemporalData.from_stacked_channel_prime(
+                                        mean[0, :], n_chans=31
+                                    ).get_channel_vec(idx_ch),
+                                    SpatioTemporalData.from_stacked_channel_prime(
+                                        mean[1, :], n_chans=31
+                                    ).get_channel_vec(idx_ch),
+                                ]
+                            )
+                            ax[axi, chi].plot(evec.times_, ch_mean.T)
+                            ax[axi, chi].set_title(f"{ch} {description} mean")
+                    f.suptitle(
+                        f"Mean estimates after {let_i+1} letter(s), Sub: {sub}, Block: {block}"
+                    )
+                    plt.show()
 
-            # %%
-            # sent = dict()
-            # sent['slda'] = "FRANZL JAGT IA KOMPKET. !EAWAHRLOSTEN TJAI LUIROGURCH FRHIBDTG."
-            # sent['slda_cum'] = "FRANZQ JAGT DR KOMPPEST VJRWAHRLMSNEN TAXI LUER.JULCH FXEIBURG."
-            # sent['toep_lda'] = "FRANZY JAGT IM KOMPLETT VERWAHRLOSTEN TAXI QUER<DURCH FREIBURG."
-            # sent['toep_lda_cum'] = "FRANZY JAGT IM KOMPLETT VERWAHRLMSTEN TAXI QUER<DURCH FREIBURG."
-            #
-            # for s in sent:
-            #     print(f"{s:>20}: {sent[s]}")
+            correct_letters = [d == t for d, t in zip(decoded_sentence, true_sentence)]
+            print("\nResults====")
+            print(
+                f" Decoded: '{decoded_sentence}' ({np.sum(correct_letters)}/{len(correct_letters)})"
+            )
+            print(f" True:    '{true_sentence}'\n")
+
+            # Add all rows to dataframe and reset rows buffer
+            df = pd.concat([df, pd.DataFrame.from_records(rows)], ignore_index=True)
+            rows = list()
+            df.to_csv(f"/home/jan/results_em_{dcode.lower()}.csv")
