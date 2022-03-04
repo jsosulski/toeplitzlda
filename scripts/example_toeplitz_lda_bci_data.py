@@ -39,9 +39,7 @@ tmp_f.mkdir(exist_ok=True)
 cache_f = tmp_f / f"epos_s{sub}_b{block}-epo.fif"
 if not cache_f.exists():
     print("Preprocessing Data.")
-    epochs, _ = dataset.load_epochs(
-        block_nrs=[block], fband=[0.5, 16], sampling_rate=50
-    )
+    epochs, _ = dataset.load_epochs(block_nrs=[block], fband=[0.5, 16], sampling_rate=50)
     epochs.save(cache_f)
 else:
     print("Loading cached")
@@ -100,9 +98,7 @@ clfs["sup"]["skl_lda_toep"] = make_pipeline(
     EpochsVectorizer(
         select_ival=[0.05, 0.7],
     ),
-    LinearDiscriminantAnalysis(
-        solver="lsqr", covariance_estimator=ToepTapLW(n_channels=nch)
-    ),
+    LinearDiscriminantAnalysis(solver="lsqr", covariance_estimator=ToepTapLW(n_channels=nch)),
 )
 
 # Compare with plain sklearn

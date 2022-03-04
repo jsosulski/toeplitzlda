@@ -134,9 +134,7 @@ def predicted_letter_over_trial(epo, pred, ax=None, gt=None):
     t_let_seq = letter_sequencing[spellable.index(gt)]
     if correct:
         earliest_correct = (
-            1
-            + len(epo)
-            - np.where(~(high_score_history == high_score_history[-1])[::-1])[0][0]
+            1 + len(epo) - np.where(~(high_score_history == high_score_history[-1])[::-1])[0][0]
         )
         num_target_flashes = int(t_let_seq[:earliest_correct].sum())
     else:
@@ -225,9 +223,7 @@ suffix += "_base" if use_base else ""
 suffix += "_chdrop" if use_chdrop else ""
 
 basedir = (
-    Path.home()
-    / f"results_usup_runtime"
-    / f"{lowpass}hz_lowpass_{sr}Hz_sr_{ntimes}tD{suffix}"
+    Path.home() / f"results_usup_runtime" / f"{lowpass}hz_lowpass_{sr}Hz_sr_{ntimes}tD{suffix}"
 )
 os.makedirs(
     basedir,
@@ -282,9 +278,7 @@ for sub in all_subjects:
             [0.38, 0.53],
             [0.53, 0.70],
         ]
-        vec_args = (
-            dict(jumping_mean_ivals=jm) if use_jump else dict(select_ival=[0.05, 0.70])
-        )
+        vec_args = dict(jumping_mean_ivals=jm) if use_jump else dict(select_ival=[0.05, 0.70])
         if use_each_best:
             vec_args_slda = dict(jumping_mean_ivals=jm)
             vec_args_toep = dict(select_ival=[0.05, 0.70])
