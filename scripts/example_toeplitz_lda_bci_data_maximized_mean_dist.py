@@ -71,6 +71,7 @@ np.random.seed(123)
 dcode = "Mix"
 plot_erp_after_every_letter = False
 debug_prints = True
+use_cumu_cov = False
 # Idea: instead of using Sigma_T use (Sigma_T - (Mu^T * Mu)) = (Sigma_T - Sigma_B) = Sigma_W ?
 # This should be a better estimate of Within-Scatter. But: not necesarrily full rank!
 # FIXME: Not implemented yet.
@@ -105,7 +106,8 @@ else:
 # subjects = [4, 11]
 # blocks = [3, 1]
 
-parameter_combinations = [[True, True], [False, True], [True, False], [False, False]]
+# parameter_combinations = [[True, True], [False, True], [True, False], [False, False]]
+parameter_combinations = [[True, False], [False, False], [True, True], [False, True]]
 
 for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter_combinations):
     row["toeplitz_covariance"] = use_toeplitz_covariance
@@ -167,10 +169,16 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                 selected_letters = [f"Letter_{li + 1}" for li in range(let_i + 1)]
                 epo_cumulated_trials = all_epochs[selected_letters]
 
-                if debug_prints:
-                    print(f"  Fitting covariance on {len(epo_cumulated_trials)} epochs")
                 cov_model = ToepTapLW(n_channels=n_channels, only_lw=(not use_toeplitz_covariance))
-                cov_model.fit(evec.transform(epo_cumulated_trials))
+                if use_cumu_cov:
+                    cov_model.fit(evec.transform(epo_cumulated_trials))
+                    if debug_prints:
+                        print(f"  Fitting covariance on {len(epo_cumulated_trials)} epochs")
+                else:
+                    print("Using only current covariance")
+                    cov_model.fit(evec.transform(epo_current_trial))
+                    if debug_prints:
+                        print(f"  Fitting covariance on {len(epo_current_trial)} epochs")
                 # Store total covariance/scatter. Needed for implementation of only within cov
                 # But that has rank issues for now.
                 total_cov = cov_model.covariance_
