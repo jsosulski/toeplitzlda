@@ -68,10 +68,10 @@ blocks = [1, 2, 3]
 np.random.seed(123)
 
 # Parameters to change
-dcode = "Mix"
+dcode = "LLP"
 plot_erp_after_every_letter = False
 debug_prints = True
-use_cumu_cov = False
+use_cumu_cov = True
 # Idea: instead of using Sigma_T use (Sigma_T - (Mu^T * Mu)) = (Sigma_T - Sigma_B) = Sigma_W ?
 # This should be a better estimate of Within-Scatter. But: not necesarrily full rank!
 # FIXME: Not implemented yet.
@@ -102,13 +102,14 @@ else:
     raise ValueError(f"Dataset code: {dcode} is not valid")
 
 # DEBUG OVERWRITE
-# n_letters = 14
+# n_letters = 63
 # subjects = [4, 11]
-# blocks = [3, 1]
+# blocks = [2, 3, 1]
 
-# parameter_combinations = [[True, True], [False, True], [True, False], [False, False]]
-parameter_combinations = [[True, False], [False, False], [True, True], [False, True]]
+parameter_combinations = [[True, True], [False, True], [True, False], [False, False]]
+# parameter_combinations = [[True, False], [False, False], [True, True], [False, True]]
 
+CHANNEL_SET_8 = ["Cz", "Pz", "O1", "O2"]
 for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter_combinations):
     row["toeplitz_covariance"] = use_toeplitz_covariance
     row["aggregated_mean"] = use_aggregated_mean
@@ -137,7 +138,9 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                 print("Could not load epochs. Skipping this block")
                 continue
             print("Starting letter processing")
+            all_epochs.pick_channels(CHANNEL_SET_8)
             all_epochs.reset_drop_log_selection()
+            print(all_epochs.ch_names)
             # Need to obtain feature dimensions from loaded data
             evec.transform(all_epochs)
             n_times = len(evec.times_)
@@ -212,6 +215,7 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                         print(f"Could not select for symbol {s} as it does not exist in epos")
                         continue
                     # Everything not in t_epo is nontarget
+                    print(f"Ground truth only: {len(t_epo[true_sentence[let_i]])} actual targets in subset")
                     nt_idx = np.setxor1d(t_epo.selection, epo_current_trial.selection)
                     nt_epo = epo_current_trial[nt_idx]
                     non_target_mean = np.mean(evec.transform(nt_epo), axis=0)[np.newaxis, :]
