@@ -68,7 +68,7 @@ blocks = [1, 2, 3]
 np.random.seed(123)
 
 # Parameters to change
-dcode = "LLP"
+dcode = "Mix"
 plot_erp_after_every_letter = False
 debug_prints = True
 use_cumu_cov = True
@@ -108,8 +108,14 @@ else:
 
 parameter_combinations = [[True, True], [False, True], [True, False], [False, False]]
 # parameter_combinations = [[True, False], [False, False], [True, True], [False, True]]
+channels = list()
+channels.append([ "Fp1", "Fp2", "F3", "F4", "C3", "C4", "P3", "P4", "O1", "O2", "F7", "F8", "T7", "T8", "P7", "P8", "Fz", "Cz", "Pz", "FC1", "FC2", "CP1", "CP2", "FC5", "FC6", "CP5", "CP6", "F9", "F10", "P9", "P10"])
+channels.append(["Fz", "C3", "C4", "Cz", "P3", "P4", "O1", "O2", "Pz"])
+channels.append(["Fz", "Cz", "O1", "O2", "Pz"])
+channels.append(["O1", "O2", "Pz"])
+channels.append(["O1", "O2"])
+channels.append(["O1"])
 
-CHANNEL_SET_8 = ["Cz", "Pz", "O1", "O2"]
 for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter_combinations):
     row["toeplitz_covariance"] = use_toeplitz_covariance
     row["aggregated_mean"] = use_aggregated_mean
@@ -138,212 +144,220 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                 print("Could not load epochs. Skipping this block")
                 continue
             print("Starting letter processing")
-            all_epochs.pick_channels(CHANNEL_SET_8)
             all_epochs.reset_drop_log_selection()
-            print(all_epochs.ch_names)
             # Need to obtain feature dimensions from loaded data
-            evec.transform(all_epochs)
-            n_times = len(evec.times_)
-            n_channels = len(all_epochs.ch_names)
-            # Reset variables
-            decoded_sentence = ""
-            aggregated_clmeans = np.zeros((2, n_times * n_channels))
-            for let_i in range(n_letters):
-                letter_evaluation_start_time = time.time()
-                if not debug_prints:
-                    print("!" if (let_i + 1) % 10 == 0 else ".", end="")
-                else:
-                    print(
-                        f" Current letter: {let_i+1} ({dcode=} {use_toeplitz_covariance=} {use_aggregated_mean=})"
-                    )
-                row["nth_letter"] = let_i + 1
-                # Select epochs only from current letter/trial
-                epo_current_trial = all_epochs[f"Letter_{let_i + 1}"]
-                if len(epo_current_trial) < 68:
-                    print(
-                        f"WARNING, EPO NOT FULL (Letter {let_i+1} has only {len(epo_current_trial)}/68)"
-                    )
-                # Has never occured
-                elif len(epo_current_trial) > 68:
-                    print("!!!!!!!! More epochs than allowed. Aborting block. !!!!!!!!")
-                    break
-
-                # Select all epochs from current and past letters/trials
-                selected_letters = [f"Letter_{li + 1}" for li in range(let_i + 1)]
-                epo_cumulated_trials = all_epochs[selected_letters]
-
-                cov_model = ToepTapLW(n_channels=n_channels, only_lw=(not use_toeplitz_covariance))
-                if use_cumu_cov:
-                    cov_model.fit(evec.transform(epo_cumulated_trials))
-                    if debug_prints:
-                        print(f"  Fitting covariance on {len(epo_cumulated_trials)} epochs")
-                else:
-                    print("Using only current covariance")
-                    cov_model.fit(evec.transform(epo_current_trial))
-                    if debug_prints:
-                        print(f"  Fitting covariance on {len(epo_current_trial)} epochs")
-                # Store total covariance/scatter. Needed for implementation of only within cov
-                # But that has rank issues for now.
-                total_cov = cov_model.covariance_
-                inversion_time = time.time()
-                total_prec = np.linalg.pinv(total_cov)
-                inversion_duration = time.time() - inversion_time
-                if debug_prints:
-                    print(f"  Covariance inversion took {inversion_duration:1.3f} seconds")
-
-                # Set up variables
-                # Reset epoch indexing to 0..67
-                epo_current_trial.reset_drop_log_selection()
-                spellable_num_targets = np.empty(len(spellable))
-                # spellable_curr_sqdist = np.empty(len(spellable))
-                # spellable_agg_sqdist = np.empty(len(spellable))
-                spellable_scores = np.empty(len(spellable))
-                prev_best_score = -np.inf
-                best_mean_estimate = None
-                current_trial_X = evec.transform(epo_current_trial)
-
-                # Only needed for sanity check
-                random_means = None
-                # Iterate over all spellable symbols and choose the one producing maximal
-                # likelihoods given the data of the current trial
-                # Potential speedups after first few letters. Only check first X most likely
-                # target letters for new mean assignments etc.
-                for si, s in enumerate(spellable):
-                    try:
-                        t_epo = epo_current_trial[s]
-                    except:
-                        print(f"Could not select for symbol {s} as it does not exist in epos")
-                        continue
-                    # Everything not in t_epo is nontarget
-                    print(f"Ground truth only: {len(t_epo[true_sentence[let_i]])} actual targets in subset")
-                    nt_idx = np.setxor1d(t_epo.selection, epo_current_trial.selection)
-                    nt_epo = epo_current_trial[nt_idx]
-                    non_target_mean = np.mean(evec.transform(nt_epo), axis=0)[np.newaxis, :]
-                    target_mean = np.mean(evec.transform(t_epo), axis=0)[np.newaxis, :]
-                    # SANITY CHECK: OVERRIDE MEAN VECTORS WITH RANDOM VECTORS
-                    if let_i < sanity_check_use_random_mean_for_first_n_letters:
-                        if random_means is None:
-                            if sanity_check_letter_for_data_based_random_means is not None:
-                                random_means = [
-                                    non_target_mean.repeat(len(spellable), axis=0),
-                                    target_mean.repeat(len(spellable), axis=0),
-                                ]
-                            # Gaussian random stuff
-                            else:
-                                random_non_target_mean = np.random.multivariate_normal(
-                                    np.zeros_like(non_target_mean).squeeze() - 1,
-                                    total_cov,
-                                    size=len(spellable),
-                                )
-                                random_target_mean = np.random.multivariate_normal(
-                                    np.zeros_like(target_mean).squeeze() + 1,
-                                    total_cov,
-                                    size=len(spellable),
-                                )
-                                random_means = [random_non_target_mean, random_target_mean]
-                        non_target_mean = random_means[0][si, :]
-                        target_mean = random_means[1][si, :]
-
-                    current_trial_means = np.vstack([non_target_mean, target_mean])
-                    aggregated_trial_means = (aggregated_clmeans * let_i + current_trial_means) / (
-                        let_i + 1
-                    )
-                    if use_aggregated_mean:
-                        agg_mean_diff = (
-                            aggregated_trial_means[1, :] - aggregated_trial_means[0, :]
-                        )[:, None]
-                        # More weight to dimension with less variance
-                        sq_agg_mean_dist = (agg_mean_diff.T @ total_prec @ agg_mean_diff)[0, 0]
-                        # Equal weight to all dimensions
-                        # sq_agg_mean_dist = (agg_mean_diff.T @ agg_mean_diff).squeeze()
-                        score = sq_agg_mean_dist
+            for chans in channels:
+                row["channels"] = "_".join(chans)
+                row["n_channels"] = len(chans)
+                all_epochs.pick_channels(chans)
+                print(all_epochs.ch_names)
+                evec.transform(all_epochs)
+                n_times = len(evec.times_)
+                n_channels = len(all_epochs.ch_names)
+                # Reset variables
+                decoded_sentence = ""
+                aggregated_clmeans = np.zeros((2, n_times * n_channels))
+                for let_i in range(n_letters):
+                    letter_evaluation_start_time = time.time()
+                    if not debug_prints:
+                        print("!" if (let_i + 1) % 10 == 0 else ".", end="")
                     else:
-                        curr_mean_diff = (current_trial_means[1, :] - current_trial_means[0, :])[
-                            :, None
-                        ]
-                        sq_curr_mean_dist = (
-                            curr_mean_diff.T @ total_prec @ curr_mean_diff
-                        ).squeeze()
-                        score = sq_curr_mean_dist
+                        print(
+                            f" Current letter: {let_i+1} ({dcode=} {use_toeplitz_covariance=} {use_aggregated_mean=})"
+                        )
+                    row["nth_letter"] = let_i + 1
+                    # Select epochs only from current letter/trial
+                    epo_current_trial = all_epochs[f"Letter_{let_i + 1}"]
+                    if len(epo_current_trial) < 68:
+                        print(
+                            f"WARNING, EPO NOT FULL (Letter {let_i+1} has only {len(epo_current_trial)}/68)"
+                        )
+                    # Has never occured
+                    elif len(epo_current_trial) > 68:
+                        print("!!!!!!!! More epochs than allowed. Aborting block. !!!!!!!!")
+                        break
 
-                    # We want to update the aggregated means with the best estimate for the current
-                    # Letter/Trial
-                    if score > prev_best_score:
-                        prev_best_score = score
-                        best_mean_estimate = current_trial_means
-                    spellable_scores[si] = score
-                # Update the current class mean aggregate with best trial estimate
-                aggregated_clmeans = (aggregated_clmeans * let_i + best_mean_estimate) / (let_i + 1)
-                # Most likely spellable produces highest class mean distances
-                most_likely_idx = np.argmax(spellable_scores)
-                decoded_sentence += spellable[most_likely_idx]
-                letter_evaluation_total_time = time.time() - letter_evaluation_start_time
-                correct = spellable[most_likely_idx] == true_sentence[let_i]
-                # Softmax as approximation of how sure we are, FOR NOW only used as metric.
-                # But: this could be used to inform mean_aggregation, e.g.,
-                # how to weight each trial mean estimate...
-                softmax_best_2 = np.sort(softmax(spellable_scores))[-2:]
-                softmax_best_5 = np.sort(softmax(spellable_scores))[::-1][0:5]
-                softmax_best_5_str = " ".join(map("{:.4f}".format, softmax_best_5))
-                spellable_order = [spellable[i] for i in np.argsort(spellable_scores)][::-1]
-                distance_to_true_letter = spellable_order.index(true_sentence[let_i])
-                print(f" Decoded/Actual:  {spellable[most_likely_idx]}/{true_sentence[let_i]}")
-                print(f"  Softmax top5:                {softmax_best_5_str}")
-                print(f"  Best 5 letters (descending): {spellable_order[:5]}\n")
-                softmax_logratio = np.log10(softmax_best_2[1]) - np.log10(softmax_best_2[0])
-                row["correct"] = correct
-                row["decoded_letter"] = spellable[most_likely_idx]
-                row["true_letter"] = true_sentence[let_i]
-                row["softmax_logratio_to_second"] = softmax_logratio
-                row["evaluation_time"] = letter_evaluation_total_time
-                row["num_epos"] = len(epo_current_trial)
-                row["distance_to_true_letter"] = distance_to_true_letter
-                rows.append(deepcopy(row))
-                if debug_prints:
-                    print(f" Letter took {letter_evaluation_total_time:.3f} seconds to evaluate")
+                    # Select all epochs from current and past letters/trials
+                    selected_letters = [f"Letter_{li + 1}" for li in range(let_i + 1)]
+                    epo_cumulated_trials = all_epochs[selected_letters]
 
-                # Print erp mean estimates
-                if plot_erp_after_every_letter and hyp_i == 0:
-                    plot_me_channels = ["Pz", "O2"]
-                    f, ax = plt.subplots(
-                        2,
-                        len(plot_me_channels),
-                        figsize=(10, 3.5 * len(plot_me_channels)),
-                        sharey="all",
-                    )
-                    for chi, ch in enumerate(plot_me_channels):
-                        idx_ch = all_epochs.ch_names.index(ch)
-                        for axi, (description, mean) in enumerate(
-                            [
-                                ("current trial", best_mean_estimate),
-                                ("aggregated trials", aggregated_clmeans),
+                    cov_model = ToepTapLW(n_channels=n_channels, only_lw=(not use_toeplitz_covariance))
+                    if use_cumu_cov:
+                        cov_model.fit(evec.transform(epo_cumulated_trials))
+                        if debug_prints:
+                            print(f"  Fitting covariance on {len(epo_cumulated_trials)} epochs")
+                    else:
+                        print("Using only current covariance")
+                        cov_model.fit(evec.transform(epo_current_trial))
+                        if debug_prints:
+                            print(f"  Fitting covariance on {len(epo_current_trial)} epochs")
+                    # Store total covariance/scatter. Needed for implementation of only within cov
+                    # But that has rank issues for now.
+                    total_cov = cov_model.covariance_
+                    inversion_time = time.time()
+                    total_prec = np.linalg.pinv(total_cov)
+                    inversion_duration = time.time() - inversion_time
+                    if debug_prints:
+                        print(f"  Covariance inversion took {inversion_duration:1.3f} seconds")
+
+                    # Set up variables
+                    # Reset epoch indexing to 0..67
+                    epo_current_trial.reset_drop_log_selection()
+                    spellable_num_targets = np.empty(len(spellable))
+                    # spellable_curr_sqdist = np.empty(len(spellable))
+                    # spellable_agg_sqdist = np.empty(len(spellable))
+                    spellable_scores = np.empty(len(spellable))
+                    prev_best_score = -np.inf
+                    best_mean_estimate = None
+                    current_trial_X = evec.transform(epo_current_trial)
+
+                    # Only needed for sanity check
+                    random_means = None
+                    # Iterate over all spellable symbols and choose the one producing maximal
+                    # likelihoods given the data of the current trial
+                    # Potential speedups after first few letters. Only check first X most likely
+                    # target letters for new mean assignments etc.
+                    for si, s in enumerate(spellable):
+                        try:
+                            t_epo = epo_current_trial[s]
+                        except:
+                            print(f"Could not select for symbol {s} as it does not exist in epos")
+                            continue
+                        # Everything not in t_epo is nontarget
+                        try:
+                            num_gt_targets = len(t_epo[true_sentence[let_i]])
+                        except:
+                            num_gt_targets = 0
+                        # if debug_prints:
+                        #     print(f"Ground truth only: {num_gt_targets} actual targets in subset")
+                        nt_idx = np.setxor1d(t_epo.selection, epo_current_trial.selection)
+                        nt_epo = epo_current_trial[nt_idx]
+                        non_target_mean = np.mean(evec.transform(nt_epo), axis=0)[np.newaxis, :]
+                        target_mean = np.mean(evec.transform(t_epo), axis=0)[np.newaxis, :]
+                        # SANITY CHECK: OVERRIDE MEAN VECTORS WITH RANDOM VECTORS
+                        if let_i < sanity_check_use_random_mean_for_first_n_letters:
+                            if random_means is None:
+                                if sanity_check_letter_for_data_based_random_means is not None:
+                                    random_means = [
+                                        non_target_mean.repeat(len(spellable), axis=0),
+                                        target_mean.repeat(len(spellable), axis=0),
+                                    ]
+                                # Gaussian random stuff
+                                else:
+                                    random_non_target_mean = np.random.multivariate_normal(
+                                        np.zeros_like(non_target_mean).squeeze() - 1,
+                                        total_cov,
+                                        size=len(spellable),
+                                    )
+                                    random_target_mean = np.random.multivariate_normal(
+                                        np.zeros_like(target_mean).squeeze() + 1,
+                                        total_cov,
+                                        size=len(spellable),
+                                    )
+                                    random_means = [random_non_target_mean, random_target_mean]
+                            non_target_mean = random_means[0][si, :]
+                            target_mean = random_means[1][si, :]
+
+                        current_trial_means = np.vstack([non_target_mean, target_mean])
+                        aggregated_trial_means = (aggregated_clmeans * let_i + current_trial_means) / (
+                            let_i + 1
+                        )
+                        if use_aggregated_mean:
+                            agg_mean_diff = (
+                                aggregated_trial_means[1, :] - aggregated_trial_means[0, :]
+                            )[:, None]
+                            # More weight to dimension with less variance
+                            sq_agg_mean_dist = (agg_mean_diff.T @ total_prec @ agg_mean_diff)[0, 0]
+                            # Equal weight to all dimensions
+                            # sq_agg_mean_dist = (agg_mean_diff.T @ agg_mean_diff).squeeze()
+                            score = sq_agg_mean_dist
+                        else:
+                            curr_mean_diff = (current_trial_means[1, :] - current_trial_means[0, :])[
+                                :, None
                             ]
-                        ):
-                            ch_mean = np.array(
+                            sq_curr_mean_dist = (
+                                curr_mean_diff.T @ total_prec @ curr_mean_diff
+                            ).squeeze()
+                            score = sq_curr_mean_dist
+
+                        # We want to update the aggregated means with the best estimate for the current
+                        # Letter/Trial
+                        if score > prev_best_score:
+                            prev_best_score = score
+                            best_mean_estimate = current_trial_means
+                        spellable_scores[si] = score
+                    # Update the current class mean aggregate with best trial estimate
+                    aggregated_clmeans = (aggregated_clmeans * let_i + best_mean_estimate) / (let_i + 1)
+                    # Most likely spellable produces highest class mean distances
+                    most_likely_idx = np.argmax(spellable_scores)
+                    decoded_sentence += spellable[most_likely_idx]
+                    letter_evaluation_total_time = time.time() - letter_evaluation_start_time
+                    correct = spellable[most_likely_idx] == true_sentence[let_i]
+                    # Softmax as approximation of how sure we are, FOR NOW only used as metric.
+                    # But: this could be used to inform mean_aggregation, e.g.,
+                    # how to weight each trial mean estimate...
+                    softmax_best_2 = np.sort(softmax(spellable_scores))[-2:]
+                    softmax_best_5 = np.sort(softmax(spellable_scores))[::-1][0:5]
+                    softmax_best_5_str = " ".join(map("{:.4f}".format, softmax_best_5))
+                    spellable_order = [spellable[i] for i in np.argsort(spellable_scores)][::-1]
+                    distance_to_true_letter = spellable_order.index(true_sentence[let_i])
+                    print(f" Decoded/Actual:  {spellable[most_likely_idx]}/{true_sentence[let_i]}")
+                    print(f"  Softmax top5:                {softmax_best_5_str}")
+                    print(f"  Best 5 letters (descending): {spellable_order[:5]}\n")
+                    softmax_logratio = np.log10(softmax_best_2[1]) - np.log10(softmax_best_2[0])
+                    row["correct"] = correct
+                    row["decoded_letter"] = spellable[most_likely_idx]
+                    row["true_letter"] = true_sentence[let_i]
+                    row["softmax_logratio_to_second"] = softmax_logratio
+                    row["evaluation_time"] = letter_evaluation_total_time
+                    row["num_epos"] = len(epo_current_trial)
+                    row["distance_to_true_letter"] = distance_to_true_letter
+                    rows.append(deepcopy(row))
+                    if debug_prints:
+                        print(f" Letter took {letter_evaluation_total_time:.3f} seconds to evaluate")
+
+                    # Print erp mean estimates
+                    if plot_erp_after_every_letter and hyp_i == 0:
+                        plot_me_channels = ["Pz", "O2"]
+                        f, ax = plt.subplots(
+                            2,
+                            len(plot_me_channels),
+                            figsize=(10, 3.5 * len(plot_me_channels)),
+                            sharey="all",
+                        )
+                        for chi, ch in enumerate(plot_me_channels):
+                            idx_ch = all_epochs.ch_names.index(ch)
+                            for axi, (description, mean) in enumerate(
                                 [
-                                    SpatioTemporalData.from_stacked_channel_prime(
-                                        mean[0, :], n_chans=31
-                                    ).get_channel_vec(idx_ch),
-                                    SpatioTemporalData.from_stacked_channel_prime(
-                                        mean[1, :], n_chans=31
-                                    ).get_channel_vec(idx_ch),
+                                    ("current trial", best_mean_estimate),
+                                    ("aggregated trials", aggregated_clmeans),
                                 ]
-                            )
-                            ax[axi, chi].plot(evec.times_, ch_mean.T)
-                            ax[axi, chi].set_title(f"{ch} {description} mean")
-                    f.suptitle(
-                        f"Mean estimates after {let_i+1} letter(s), Sub: {sub}, Block: {block}"
-                    )
-                    plt.show()
+                            ):
+                                ch_mean = np.array(
+                                    [
+                                        SpatioTemporalData.from_stacked_channel_prime(
+                                            mean[0, :], n_chans=31
+                                        ).get_channel_vec(idx_ch),
+                                        SpatioTemporalData.from_stacked_channel_prime(
+                                            mean[1, :], n_chans=31
+                                        ).get_channel_vec(idx_ch),
+                                    ]
+                                )
+                                ax[axi, chi].plot(evec.times_, ch_mean.T)
+                                ax[axi, chi].set_title(f"{ch} {description} mean")
+                        f.suptitle(
+                            f"Mean estimates after {let_i+1} letter(s), Sub: {sub}, Block: {block}"
+                        )
+                        plt.show()
 
-            correct_letters = [d == t for d, t in zip(decoded_sentence, true_sentence)]
-            print("\nResults====")
-            print(
-                f" Decoded: '{decoded_sentence}' ({np.sum(correct_letters)}/{len(correct_letters)})"
-            )
-            print(f" True:    '{true_sentence}'\n")
+                correct_letters = [d == t for d, t in zip(decoded_sentence, true_sentence)]
+                print("\nResults====")
+                print(
+                    f" Decoded: '{decoded_sentence}' ({np.sum(correct_letters)}/{len(correct_letters)})"
+                )
+                print(f" True:    '{true_sentence}'\n")
 
-            # Add all rows to dataframe and reset rows buffer
-            df = pd.concat([df, pd.DataFrame.from_records(rows)], ignore_index=True)
-            rows = list()
-            df.to_csv(f"/home/jan/results_em_{dcode.lower()}.csv")
+                # Add all rows to dataframe and reset rows buffer
+                df = pd.concat([df, pd.DataFrame.from_records(rows)], ignore_index=True)
+                rows = list()
+                df.to_csv(f"/home/jan/results_em_{dcode.lower()}.csv")
