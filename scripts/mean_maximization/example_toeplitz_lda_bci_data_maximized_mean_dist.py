@@ -109,7 +109,41 @@ else:
 parameter_combinations = [[True, True], [False, True], [True, False], [False, False]]
 # parameter_combinations = [[True, False], [False, False], [True, True], [False, True]]
 channels = list()
-channels.append([ "Fp1", "Fp2", "F3", "F4", "C3", "C4", "P3", "P4", "O1", "O2", "F7", "F8", "T7", "T8", "P7", "P8", "Fz", "Cz", "Pz", "FC1", "FC2", "CP1", "CP2", "FC5", "FC6", "CP5", "CP6", "F9", "F10", "P9", "P10"])
+channels.append(
+    [
+        "Fp1",
+        "Fp2",
+        "F3",
+        "F4",
+        "C3",
+        "C4",
+        "P3",
+        "P4",
+        "O1",
+        "O2",
+        "F7",
+        "F8",
+        "T7",
+        "T8",
+        "P7",
+        "P8",
+        "Fz",
+        "Cz",
+        "Pz",
+        "FC1",
+        "FC2",
+        "CP1",
+        "CP2",
+        "FC5",
+        "FC6",
+        "CP5",
+        "CP6",
+        "F9",
+        "F10",
+        "P9",
+        "P10",
+    ]
+)
 channels.append(["Fz", "C3", "C4", "Cz", "P3", "P4", "O1", "O2", "Pz"])
 channels.append(["Fz", "Cz", "O1", "O2", "Pz"])
 channels.append(["O1", "O2", "Pz"])
@@ -181,7 +215,9 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                     selected_letters = [f"Letter_{li + 1}" for li in range(let_i + 1)]
                     epo_cumulated_trials = all_epochs[selected_letters]
 
-                    cov_model = ToepTapLW(n_channels=n_channels, only_lw=(not use_toeplitz_covariance))
+                    cov_model = ToepTapLW(
+                        n_channels=n_channels, only_lw=(not use_toeplitz_covariance)
+                    )
                     if use_cumu_cov:
                         cov_model.fit(evec.transform(epo_cumulated_trials))
                         if debug_prints:
@@ -259,9 +295,9 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                             target_mean = random_means[1][si, :]
 
                         current_trial_means = np.vstack([non_target_mean, target_mean])
-                        aggregated_trial_means = (aggregated_clmeans * let_i + current_trial_means) / (
-                            let_i + 1
-                        )
+                        aggregated_trial_means = (
+                            aggregated_clmeans * let_i + current_trial_means
+                        ) / (let_i + 1)
                         if use_aggregated_mean:
                             agg_mean_diff = (
                                 aggregated_trial_means[1, :] - aggregated_trial_means[0, :]
@@ -272,9 +308,9 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                             # sq_agg_mean_dist = (agg_mean_diff.T @ agg_mean_diff).squeeze()
                             score = sq_agg_mean_dist
                         else:
-                            curr_mean_diff = (current_trial_means[1, :] - current_trial_means[0, :])[
-                                :, None
-                            ]
+                            curr_mean_diff = (
+                                current_trial_means[1, :] - current_trial_means[0, :]
+                            )[:, None]
                             sq_curr_mean_dist = (
                                 curr_mean_diff.T @ total_prec @ curr_mean_diff
                             ).squeeze()
@@ -287,7 +323,9 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                             best_mean_estimate = current_trial_means
                         spellable_scores[si] = score
                     # Update the current class mean aggregate with best trial estimate
-                    aggregated_clmeans = (aggregated_clmeans * let_i + best_mean_estimate) / (let_i + 1)
+                    aggregated_clmeans = (aggregated_clmeans * let_i + best_mean_estimate) / (
+                        let_i + 1
+                    )
                     # Most likely spellable produces highest class mean distances
                     most_likely_idx = np.argmax(spellable_scores)
                     decoded_sentence += spellable[most_likely_idx]
@@ -314,7 +352,9 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                     row["distance_to_true_letter"] = distance_to_true_letter
                     rows.append(deepcopy(row))
                     if debug_prints:
-                        print(f" Letter took {letter_evaluation_total_time:.3f} seconds to evaluate")
+                        print(
+                            f" Letter took {letter_evaluation_total_time:.3f} seconds to evaluate"
+                        )
 
                     # Print erp mean estimates
                     if plot_erp_after_every_letter and hyp_i == 0:
