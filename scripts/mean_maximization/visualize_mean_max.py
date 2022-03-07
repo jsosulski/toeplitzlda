@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -5,6 +7,7 @@ import numpy as np
 
 plt.rcParams["figure.dpi"] = 150
 sns.set_style("whitegrid")
+FIG_PATH = Path.home() / "Desktop" / "ablage"
 
 for dcode in ["Mix", "LLP"]:
     # for dcode in ["LLP", "Mix"]:
@@ -58,7 +61,7 @@ for dcode in ["Mix", "LLP"]:
         hline_pos = np.cumsum(hline_pos[:-1])
 
         # %%
-        fig, axes = plt.subplots(2, 2, figsize=(12, 7), sharex="all", sharey="all")
+        fig, axes = plt.subplots(2, 2, figsize=(10, 7), sharex="all", sharey="all")
         fig.suptitle(f"Dataset: {dcode}, n_channels: {nch}")
         for ti, toep in enumerate([True, False]):
             for ai, agg_mean in enumerate([True, False]):
@@ -90,6 +93,7 @@ for dcode in ["Mix", "LLP"]:
                 axes[ai, ti].set_title(f"{cov_method}, {mean_method}")
                 axes[ai, ti].set_xlabel("Nth letter")
                 axes[ai, ti].set_ylabel("Subject")
+        fig.savefig(FIG_PATH / f"heatmap_{dcode.lower()}_{nch}_channels.png", dpi=150)
         plt.show()
 
         # fig_softmax, axes_softmax = plt.subplots(2, 2, figsize=(8, 7), sharex="all", sharey="row")
