@@ -90,10 +90,10 @@ systems. If you are on ubuntu you can install `gfortran`.
 
 We use `poetry` for dependency management. If you have it installed you can simply use
 `poetry install` to set up the virtual environment with all dependencies. All extra
-features can be installed with `poetry install -E solver,neuro`.
+features can be installed with `poetry install -E solver -E neuro`.
 
-If setup does not work for you, please open an issue. We cannot guarantee support for many
-different platforms, but could provide a
+If setup does not work for you, please open an issue. We cannot provide in-depth support
+for many different platforms, but could provide a
 [singularity](https://sylabs.io/guides/3.5/user-guide/introduction.html) image.
 
 ## Learning from label proportions
@@ -116,6 +116,10 @@ cluster. The public datasets (including the LLP datasets) total a size of approx
 
 BLOCKING TODO: How should we handle the private datasets?
 
+- [ ] Split benchmark into public and private/closed classes
+- [ ] Can we provide the code for private datasets without the data? Or is that too
+      sensitive?
+
 ## FAQ
 
 ### Why is my classification performance for my stationary spatiotemporal data really bad?
@@ -124,3 +128,18 @@ Check if your data is in _channel-prime_ order, i.e., in the flattened feature v
 first enumerate over all channels (or some other spatially distributed sensors) for the
 first time point and then for the second time point and so on. If this is not the case,
 tell the classifier: e.g. `ToeplitzLDA(n_channels=16, data_is_channel_prime=False)`
+
+### I dont know if my data is stationary. How can I find out?
+
+We do not provide any statistical testing or other facilities to check for stationarity.
+However, we use the `blockmatrix` package (disclaimer: also provided by us), which can
+visualize your covariance matrix in a way that you can see if stationarity is a reasonable
+assumption or not. Note however, sometimes your data will look non-stationary due to,
+e.g., artifacts, even though your underlying process is stationary. This often happens if
+the number of data samples to estimate the covariance is small. However, in our data it
+then is often better to enforce stationarity anyhow, as you can avoid overfitting on the
+_presumably_ non-stationary observed data.
+
+## Further Work / Todos
+
+- [ ] Example how to check data for stationarity. Maybe better in `blockmatrix` package.
