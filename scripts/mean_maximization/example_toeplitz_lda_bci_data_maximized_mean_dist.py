@@ -68,7 +68,7 @@ blocks = [1, 2, 3]
 np.random.seed(123)
 
 # Parameters to change
-dcode = "Mix"
+dcode = "LLP"
 plot_erp_after_every_letter = False
 debug_prints = True
 use_cumu_cov = True
@@ -102,9 +102,9 @@ else:
     raise ValueError(f"Dataset code: {dcode} is not valid")
 
 # DEBUG OVERWRITE
-# n_letters = 63
-# subjects = [4, 11]
-# blocks = [2, 3, 1]
+# n_letters = 14
+subjects = [8]
+blocks = [1]
 
 parameter_combinations = [[True, True], [False, True], [True, False], [False, False]]
 # parameter_combinations = [[True, False], [False, False], [True, True], [False, True]]
@@ -114,8 +114,8 @@ channels = list()
 #                  "T8", "P7", "P8", "Fz", "Cz", "Pz", "FC1", "FC2", "CP1", "CP2", "FC5", "FC6",
 #                  "CP5", "CP6", "F9", "F10", "P9", "P10"])
 # fmt: on
-# channels.append(["Fz", "C3", "C4", "Cz", "P3", "P4", "O1", "O2", "Pz"])
-channels.append(["Fz", "Cz", "Pz", "O1", "O2"])
+channels.append(["Fz", "C3", "C4", "Cz", "P3", "P4", "O1", "O2", "Pz"])
+# channels.append(["Fz", "Cz", "Pz", "O1", "O2"])
 # channels.append(["O1", "O2", "Pz"])
 # channels.append(["O1", "Pz"])
 # channels.append(["O1"])
@@ -172,12 +172,13 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                 # Reset variables
                 aggregated_clmeans = [None, None, None, None]
                 for dqi, dq in enumerate(data_quarters):
-                    letter_evaluation_start_time = time.time()
                     # Select epochs only from current letter/trial
                     all_epo = all_epochs_quarters[dqi]
+                    all_epo.reset_drop_log_selection()
                     row["data_amount_in_quarters"] = dq
                     decoded_sentence = ""
                     for let_i in range(n_letters):
+                        letter_evaluation_start_time = time.time()
                         if not debug_prints:
                             print("!" if (let_i + 1) % 10 == 0 else ".", end="")
                         else:
@@ -215,8 +216,6 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                             cov_model.fit(current_trial_X)
                             if debug_prints:
                                 print(f"  Fitting covariance on {len(epo_current_trial)} epochs")
-                        # Store total covariance/scatter. Needed for implementation of only within cov
-                        # But that has rank issues for now.
                         total_cov = cov_model.covariance_
                         inversion_time = time.time()
                         total_prec = np.linalg.pinv(total_cov)
@@ -331,6 +330,10 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                         softmax_best_2 = np.sort(softmax(spellable_scores))[-2:]
                         softmax_best_5 = np.sort(softmax(spellable_scores))[::-1][0:5]
                         softmax_best_5_str = " ".join(map("{:.4f}".format, softmax_best_5))
+                        # Another possible metric: How many non-target size stdevs is the largest
+                        # vector away from mean or max of non-targets
+                        # nt_stdevs = spellable_scores[]
+
                         spellable_order = [spellable[i] for i in np.argsort(spellable_scores)][::-1]
                         distance_to_true_letter = spellable_order.index(true_sentence[let_i])
                         print(f" Trial length: {len(epo_current_trial)} epochs")
@@ -397,6 +400,6 @@ for hyp_i, (use_toeplitz_covariance, use_aggregated_mean) in enumerate(parameter
                     # Add all rows to dataframe and reset rows buffer
                     df = pd.concat([df, pd.DataFrame.from_records(rows)], ignore_index=True)
                     rows = list()
-                    df.to_csv(f"/home/jan/results_em_{dcode.lower()}.csv")
+                    # df.to_csv(f"/home/jan/results_em_{dcode.lower()}.csv")
                     print(f"Finished processing data with {dq}/4*trial length.")
                 print(f"Finished processing channel set {chans}.")

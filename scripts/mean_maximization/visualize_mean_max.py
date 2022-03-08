@@ -16,9 +16,9 @@ for dcode in ["Mix", "LLP"]:
     # %%
     for nch in all_df.n_channels.unique():
         for nquarts in all_df.data_amount_in_quarters.unique():
-            descr = f"{dcode.lower()}_{nch}_channels_{nquarts}_quarters"
             df = all_df.loc[all_df.n_channels == nch]
             df = df.loc[df.data_amount_in_quarters == nquarts]
+            descr = f"{dcode.lower()}_{nch}_channels_{int(df.num_epos.median())}_epochs"
             print(nch)
             print(df.groupby(["aggregated_mean", "toeplitz_covariance"]).mean().correct)
             f, ax = plt.subplots(4, 1, figsize=(10, 13), sharex="all")
@@ -50,8 +50,8 @@ for dcode in ["Mix", "LLP"]:
                 legend=False,
             )
             sns.lineplot(data=df, x="nth_letter", y="evaluation_time", ax=ax[3], color="k")
-            f.suptitle(f"Dataset: {dcode}, n_channels: {nch}")
-            f.savefig(Path() / f"stats_{descr}.png", dpi=150)
+            f.suptitle(descr)
+            f.savefig(FIG_PATH / f"stats_{descr}.png", dpi=150)
             plt.show()
             # %%
             # cm = sns.color_palette("viridis_r", as_cmap=True)
@@ -66,7 +66,7 @@ for dcode in ["Mix", "LLP"]:
 
             # %%
             fig, axes = plt.subplots(2, 2, figsize=(10, 7), sharex="all", sharey="all")
-            fig.suptitle(f"Dataset: {dcode}, n_channels: {nch}")
+            fig.suptitle(descr)
             for ti, toep in enumerate([True, False]):
                 for ai, agg_mean in enumerate([True, False]):
 
