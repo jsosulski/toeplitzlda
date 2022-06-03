@@ -60,9 +60,7 @@ def subtract_classwise_means(xTr, y, ext_mean=None):
                 [
                     X,
                     xTr[:, class_idxs]
-                    - np.dot(
-                        cl_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))
-                    ),
+                    - np.dot(cl_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))),
                 ],
                 axis=1,
             )
@@ -71,9 +69,7 @@ def subtract_classwise_means(xTr, y, ext_mean=None):
                 [
                     X,
                     xTr[:, class_idxs]
-                    - np.dot(
-                        ext_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))
-                    ),
+                    - np.dot(ext_mean[:, ci].reshape(-1, 1), np.ones((1, np.sum(class_idxs)))),
                 ],
                 axis=1,
             )
@@ -159,9 +155,7 @@ class ToepTapLW(LedoitWolf):
             # )
             # covariance, shrinkage = oas(X_cent, assume_centered=True)
             if self.standardize:  # scale back
-                covariance = (
-                    sc.scale_[np.newaxis, :] * covariance * sc.scale_[:, np.newaxis]
-                )
+                covariance = sc.scale_[np.newaxis, :] * covariance * sc.scale_[:, np.newaxis]
         self.shrinkage_ = shrinkage_gamma
 
         if not self.only_lw:

@@ -82,9 +82,7 @@ class EpochsVectorizer(BaseEstimator, TransformerMixin):
             X = e.get_data() * self.scaling
             raise ValueError("This should never be entered though.")
         else:
-            raise ValueError(
-                "In the constructor, pass either select ival or jumping means."
-            )
+            raise ValueError("In the constructor, pass either select ival or jumping means.")
         if self.mne_scaler is not None:
             X = self.mne_scaler.fit_transform(X)
         if self.permute_channels_and_time and not self.pool_times:
@@ -416,12 +414,8 @@ class PlainLDA(BaseEstimator, ClassifierMixin):
 
         if self.use_fortran_solver:
             if not self.toeplitz_time:
-                raise ValueError(
-                    "Cannot use fortran solver without block-Toeplitz structure"
-                )
-            C_w = fortran_block_levinson(
-                C_cov, C_diff, nch=self.n_channels, ntim=self.n_times
-            )
+                raise ValueError("Cannot use fortran solver without block-Toeplitz structure")
+            C_w = fortran_block_levinson(C_cov, C_diff, nch=self.n_channels, ntim=self.n_times)
         else:
             C_w = np.linalg.solve(C_cov, C_diff)
         C_b = np.dot(-C_w.T, C_mean)

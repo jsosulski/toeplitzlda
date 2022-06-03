@@ -24,7 +24,7 @@ def generate_stationary_data(
     if noise_cov is None:
         # how much stronger is the noise compared to the signal? (class means)
         noise_factor = 15
-        noise_cov = noise_factor ** 2 * make_spd_matrix(n_channels * n_times)
+        noise_cov = noise_factor**2 * make_spd_matrix(n_channels * n_times)
         # Force generated matrix to be stationary
         # TODO how to generate "mostly" stationary data?
         stm = SpatioTemporalMatrix(noise_cov, n_chans=n_channels, n_times=n_times)

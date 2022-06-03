@@ -93,13 +93,9 @@ class LearningFromLabelProportions(BaseEstimator):
         average_O1 = np.mean(X1, axis=0)
         average_O2 = np.mean(X2, axis=0)
 
-        mu_T = (
-            self.pinv_ratio_matrix[0, 0] * average_O1
-            + self.pinv_ratio_matrix[0, 1] * average_O2
-        )
+        mu_T = self.pinv_ratio_matrix[0, 0] * average_O1 + self.pinv_ratio_matrix[0, 1] * average_O2
         mu_NT = (
-            self.pinv_ratio_matrix[1, 0] * average_O1
-            + self.pinv_ratio_matrix[1, 1] * average_O2
+            self.pinv_ratio_matrix[1, 0] * average_O1 + self.pinv_ratio_matrix[1, 1] * average_O2
         )
 
         # use reconstructed means to compute w and b
@@ -110,12 +106,8 @@ class LearningFromLabelProportions(BaseEstimator):
 
         if self.use_fortran_solver:
             if not self.toeplitz_time:
-                raise ValueError(
-                    "Cannot use fortran solver without block-Toeplitz structure"
-                )
-            C_w = fortran_block_levinson(
-                C_cov, C_diff, nch=self.n_channels, ntim=self.n_times
-            )
+                raise ValueError("Cannot use fortran solver without block-Toeplitz structure")
+            C_w = fortran_block_levinson(C_cov, C_diff, nch=self.n_channels, ntim=self.n_times)
         else:
             C_w = np.linalg.solve(C_cov, C_diff)
         C_w = 2 * C_w / np.dot(C_w.T, C_diff)
