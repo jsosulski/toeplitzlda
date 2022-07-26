@@ -96,6 +96,29 @@ If setup does not work for you, please open an issue. We cannot provide in-depth
 for many different platforms, but could provide a
 [singularity](https://sylabs.io/guides/3.5/user-guide/introduction.html) image.
 
+### Using the Apptainer / singularity image
+
+Meanwhile, Singularity has been renamed to Apptainer. We added an `apptainer.def`
+definition file which sets up an ubuntu 20.04 image which can be used to run the example
+scripts.
+
+#### Create container
+
+If you have apptainer installed:
+
+`sudo apptainer build toep.sif apptainer.def`
+
+#### Run python script
+
+For all intents and purposes, you can use the created image file in place of python, e.g.,
+if you are in folder `scripts/`, instead of:
+
+`python example_toeplitz_lda_bci_data.py`
+
+You can use
+
+`../toep.sif example_toeplitz_lda_bci_data.py`
+
 ## Learning from label proportions
 
 Use the `run_llp.py` script to apply ToeplitzLDA in the LLP scenario and create the
