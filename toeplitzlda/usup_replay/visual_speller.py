@@ -127,6 +127,7 @@ class _BaseVisualMatrixSpellerDataset(BaseDataset, ABC):
             print(vhdr_file_path)
 
         session_name = os.path.basename(os.path.dirname(vhdr_file_path))
+        # session_name = re.sub("[^0-9]", "", session_name)
         block_idx = vhdr_file_patter_match.group(1)
         run_idx = vhdr_file_patter_match.group(2)
         return session_name, block_idx, run_idx
@@ -152,6 +153,7 @@ class _BaseVisualMatrixSpellerDataset(BaseDataset, ABC):
             )
 
             session_name = f"{session_name}_block_{block_idx}"
+            session_name = "".join(c for c in session_name if c.isdigit())
             if self.run_split_n is not None:
                 for split_idx, raw_split in enumerate(raw_bvr_list):
                     session_name = session_name + f"_run_{run_idx}_split_{split_idx}"
@@ -316,7 +318,7 @@ class VisualMatrixSpellerLLPDataset(_BaseVisualMatrixSpellerDataset):
             raw_slice_offset=raw_slice_offset,
             n_subjects=13,
             sessions_per_subject=sessions_per_subject,  # if varying, take minimum
-            code="Visual Speller LLP",
+            code="VisualSpellerLLP",
             interval=interval,
             doi=llp_speller_paper_doi,
         )
@@ -372,7 +374,7 @@ class VisualMatrixSpellerMixDataset(_BaseVisualMatrixSpellerDataset):
             raw_slice_offset=raw_slice_offset,
             n_subjects=12,
             sessions_per_subject=1,  # if varying, take minimum
-            code="Visual Speller MIX",
+            code="VisualSpellerMIX",
             interval=interval,
             doi=mix_speller_paper_doi,
         )

@@ -100,6 +100,7 @@ class ToepTapLW(LedoitWolf):
         standardize=True,
         tapering=linear_taper,
         only_lw=False,
+        force_kronecker=False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -116,6 +117,7 @@ class ToepTapLW(LedoitWolf):
         self.n_channels = n_channels
         self.data_is_channel_prime = data_is_channel_prime
         self.only_lw = only_lw
+        self.force_kronecker = force_kronecker
 
     def fit(self, X, y=None):
         """Fit the covariance model to X.
@@ -165,6 +167,14 @@ class ToepTapLW(LedoitWolf):
             n_chans=self.n_channels,
             channel_prime=self.data_is_channel_prime,
         )
+        if self.force_kronecker:
+            # if not self.data_is_channel_prime:
+            #     stm.swap_primeness()
+            stm.force_kronecker_product()
+            # stm.taper_offdiagonals(self.tapering)
+            # if not self.data_is_channel_prime:
+            #     stm.swap_primeness()
+            covariance = stm.mat
 
         if not self.only_lw:
             if not self.data_is_channel_prime:
