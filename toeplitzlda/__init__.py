@@ -1,3 +1,3 @@
-__version__ = "0.2.6"
+__version__ = "0.4.0"
 
-from . import benchmark, classification, usup_replay
+from . import classification
