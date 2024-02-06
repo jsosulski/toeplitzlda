@@ -7,12 +7,14 @@ import numpy as np
 import sklearn
 import sklearn.linear_model
 import sklearn.utils.multiclass
+
 from blockmatrix import (
     SpatioTemporalMatrix,
     fortran_block_levinson,
     fortran_cov_mean_transformation,
     linear_taper,
 )
+
 from sklearn.base import BaseEstimator, ClassifierMixin, TransformerMixin
 from sklearn.utils.extmath import safe_sparse_dot
 from sklearn.utils.validation import check_is_fitted, check_X_y

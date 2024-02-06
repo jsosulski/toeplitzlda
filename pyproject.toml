@@ -14,10 +14,10 @@ repository = "https://github.com/jsosulski/toeplitzlda"
 include = ["LICENSE"]
 
 [tool.poetry.dependencies]
-python = "^3.9,<3.12"
+python = "^3.9"
 numpy = "^1"
+blockmatrix = { git = "https://github.com/jsosulski/blockmatrix.git", branch = "rework" }
 scikit-learn = "^1"
-blockmatrix = { path = "../blockmatrix" }
 toeplitz = { version = "0.3.2", optional = true }
 mne = { version = "*", optional = true }
 
