@@ -1,5 +1,7 @@
 # ToeplitzLDA
 
+- [ ] Find a way to re-add visualization methods without dependency mess.
+
 Code for the ToeplitzLDA classifier proposed in [here](https://arxiv.org/abs/2202.02001).
 The classifier conforms sklearn and can be used as a drop-in replacement for other LDA
 classifiers. For in-depth usage refer to the learning from label proportions (LLP) example
