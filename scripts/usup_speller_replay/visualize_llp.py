@@ -46,7 +46,7 @@ def savefig(fig, name, prefix=None, format="pdf", dpi=200):
     if prefix is None:
         prefix = f"{ds}_{lowpass_freq_str}"
     figfile = figure_path / f"{prefix}_{name}.{format}"
-    fig.savefig(figfile, dpi=dpi)
+    fig.savefig(figfile, dpi=dpi, transparent=True, bbox_inches="tight")
 
 
 paths = list((Path.home() / "results_usup").glob(f"{lowpass_freq_str}*"))
@@ -201,26 +201,26 @@ df = pd.concat([df_toep, df_slda])
 # rdf['sb'] = rdf.subject.astype(str) + rdf.block.astype(str)
 rdf = df
 
-fig, ax = plt.subplots(1, 1)
-sns.lineplot(ax=ax, data=rdf, x="nth_letter", y="correct", hue="Classifier")
-ax.legend(loc="lower right")
-ax.set_xlabel("Nth letter")
-ax.set_ylabel("Correctly classified")
-if plot_titles:
-    ax.set_title("Classification performance on letter-level")
-fig.tight_layout()
-savefig(fig, "binary")
-plt.show()
+# fig, ax = plt.subplots(1, 1)
+# sns.lineplot(ax=ax, data=rdf, x="nth_letter", y="correct", hue="Classifier")
+# ax.legend(loc="lower right")
+# ax.set_xlabel("Nth letter")
+# ax.set_ylabel("Correctly classified")
+# if plot_titles:
+#     ax.set_title("Classification performance on letter-level")
+# fig.tight_layout()
+# savefig(fig, "binary")
+# plt.show()
 
-fig, ax = plt.subplots(1, 1)
-sns.lineplot(ax=ax, data=rdf, x="nth_letter", y="AUC", hue="Classifier")
-ax.legend(loc="lower right")
-ax.set_xlabel("Nth letter")
-if plot_titles:
-    ax.set_title("Classification performance on epoch-level")
-fig.tight_layout()
-savefig(fig, "auc")
-plt.show()
+# fig, ax = plt.subplots(1, 1)
+# sns.lineplot(ax=ax, data=rdf, x="nth_letter", y="AUC", hue="Classifier")
+# ax.legend(loc="lower right")
+# ax.set_xlabel("Nth letter")
+# if plot_titles:
+#     ax.set_title("Classification performance on epoch-level")
+# fig.tight_layout()
+# savefig(fig, "auc")
+# plt.show()
 # %%
 # plt.figure()
 # g = sns.FacetGrid(rdf, col="subject", row="block", hue="clf")
@@ -343,23 +343,23 @@ for letter_limit in [nlet]:
     savefig(fig, f"heatmap_letters_{letter_limit}", format="png", dpi=300)
     savefig(fig, f"heatmap_letters_{letter_limit}", format="pdf")
     plt.show()
-# %%
-fig, ax = plt.subplots(1, 1, figsize=fs_twocol)
-diff_df = toep_lda_df.astype(int) - slda_df.astype(int)
-g = sns.heatmap(
-    diff_df,
-    ax=ax,
-    square=True,
-    vmin=-1,
-    vmax=1,
-    cbar=None,
-    cmap=sns.diverging_palette(370, 125, s=60, as_cmap=True, center="dark"),
-    linewidths=0.0,
-    linecolor="black",
-)
-fig.tight_layout()
-savefig(fig, "diff_map", format="png")
-plt.show()
+# # %%
+# fig, ax = plt.subplots(1, 1, figsize=fs_twocol)
+# diff_df = toep_lda_df.astype(int) - slda_df.astype(int)
+# g = sns.heatmap(
+#     diff_df,
+#     ax=ax,
+#     square=True,
+#     vmin=-1,
+#     vmax=1,
+#     cbar=None,
+#     cmap=sns.diverging_palette(370, 125, s=60, as_cmap=True, center="dark"),
+#     linewidths=0.0,
+#     linecolor="black",
+# )
+# fig.tight_layout()
+# savefig(fig, "diff_map", format="png")
+# plt.show()
 
 # %%
 # Increasing vs plot
@@ -372,19 +372,19 @@ max_letter = gdf.nth_letter.unique().max()
 # gdf["Incorrectly classified letters"] = max_letter - gdf.correct_sofar
 gdf["Incorrectly classified letters"] = gdf.max_let / 3 - gdf.correct_sofar
 gdf["wrong_letters"] = gdf["Incorrectly classified letters"]
-
-fig, ax = plt.subplots(1, 1, figsize=(16, 6))
-sns.barplot(
-    ax=ax,
-    data=gdf,
-    x="Subject - Block",
-    y="Incorrectly classified letters",
-    hue="Classifier",
-)
-xtl = ax.get_xticklabels()
-ax.set_xticklabels(xtl, rotation=60)
-fig.tight_layout()
-plt.show()
+#
+# fig, ax = plt.subplots(1, 1, figsize=(16, 6))
+# sns.barplot(
+#     ax=ax,
+#     data=gdf,
+#     x="Subject - Block",
+#     y="Incorrectly classified letters",
+#     hue="Classifier",
+# )
+# xtl = ax.get_xticklabels()
+# ax.set_xticklabels(xtl, rotation=60)
+# fig.tight_layout()
+# plt.show()
 
 reductions = []
 
@@ -403,40 +403,60 @@ for s in gdf.subject.unique():
 print(f"\nAverage across Subjects")
 print(f" Reduction of errors: {np.mean(reductions)}%\n")
 # %%
-fig, ax = plt.subplots(1, 1, figsize=fs_onecol)
-xt = gdf.subject.unique()  # list(range(1, nsub+1))
-ax.bar(xt, reductions, color="gray")
-ax.set_xticks(xt)
-ax.set_xticklabels(xt, rotation=45, size=7)
-ax.set_xlabel("Subject")
-ax.set_ylabel("Reduction of incorrectly spelled letters [%]")
-ax.axhline(np.mean(reductions), label="Average error reduction", color="k")
-ax.annotate(f"{np.mean(reductions):1.1f}", (20.9, np.mean(reductions) + 1), color="k")
-
-ax.legend(loc="lower center")
-if plot_titles:
-    ax.set_title("Reduction of errors by using Toeplitz LDA instead of sLDA")
-fig.tight_layout()
-savefig(fig, "error_rate_reduction")
-plt.show()
+# fig, ax = plt.subplots(1, 1, figsize=fs_onecol)
+# xt = gdf.subject.unique()  # list(range(1, nsub+1))
+# ax.bar(xt, reductions, color="gray")
+# ax.set_xticks(xt)
+# ax.set_xticklabels(xt, rotation=45, size=7)
+# ax.set_xlabel("Subject")
+# ax.set_ylabel("Reduction of incorrectly spelled letters [%]")
+# ax.axhline(np.mean(reductions), label="Average error reduction", color="k")
+# ax.annotate(f"{np.mean(reductions):1.1f}", (20.9, np.mean(reductions) + 1), color="k")
+#
+# ax.legend(loc="lower center")
+# if plot_titles:
+#     ax.set_title("Reduction of errors by using Toeplitz LDA instead of sLDA")
+# fig.tight_layout()
+# savefig(fig, "error_rate_reduction")
+# plt.show()
 
 # %%
 
 asdf = gdf.groupby(["subject", "clf"]).sum().reset_index()
 asdf["correct_ratio"] = (asdf.nth_letter - asdf.wrong_letters) / asdf.nth_letter
 asdf["error_rate"] = 1 - asdf.correct_ratio
-met = "error_rate"
-slda_cr = asdf.loc[asdf.clf == "slda"][met].reset_index()
-tlda_cr = asdf.loc[asdf.clf == "toep_lda"][met].reset_index()
-plt.scatter(tlda_cr[met], slda_cr[met], clip_on=False, zorder=20)
-plt.xlim([0, 1])
-plt.ylim([0, 1])
-plt.plot([0, 1], [0, 1])
-plt.gca().set_box_aspect(1)
-plt.title(met)
-plt.xlabel("ToeplitzLDA")
-plt.ylabel("sLDA")
-plt.show()
+# met = "error_rate"
+# slda_cr = asdf.loc[asdf.clf == "slda"][met].reset_index()
+# tlda_cr = asdf.loc[asdf.clf == "toep_lda"][met].reset_index()
+# plt.scatter(tlda_cr[met], slda_cr[met], clip_on=False, zorder=20)
+# plt.xlim([0, 1])
+# plt.ylim([0, 1])
+# plt.plot([0, 1], [0, 1])
+# plt.gca().set_box_aspect(1)
+# plt.title(met)
+# plt.xlabel("ToeplitzLDA")
+# plt.ylabel("sLDA")
+# plt.show()
 
 
 print(asdf.groupby("clf").median()[["wrong_letters", "correct_ratio", "error_rate"]])
+sns.set_context("notebook")
+from vispp.comparative.strips import plot_matched
+
+f, ax = plt.subplots(1, 1, figsize=(3.5, 2))
+(ax, (leg, hands)) = plot_matched(
+    asdf, x="clf", y="correct_ratio", match_col="subject", ax=ax, x_match_sort="toep_lda"
+)
+# ax.legend(leg, hands, ncol=5)
+ax.set_xlabel("Used classifier")
+ax.set_xticklabels(["ToeplitzLDA", "sLDA"], rotation=0, ha="center")
+ax.set_title("BCI performance for each user")
+ax.set_ylabel("Ratio of correct letters")
+savefig(f, f"toep_vs_slda", format="pdf")
+plt.show()
+# for s in asdf["subject"].unique():
+#     slda = asdf.loc[(asdf.subject == s) & (asdf.clf == "slda")]
+#     toep = asdf.loc[(asdf.subject == s) & (asdf.clf == "toep_lda")]
+#     ax.plot(0, slda["correct_ratio"], marker=".", color=cp[3])
+#     ax.plot(1, toep["correct_ratio"], marker=".", color=cp[3])
+# plt.show()
