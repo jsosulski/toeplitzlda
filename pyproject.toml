@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "toeplitzlda"
-version = "0.4.0"
+version = "0.4.1"
 description = "Implementation of LDA using a block-Toeplitz structured covariance matrix for stationary spatiotemporal data."
 authors = ["Jan Sosulski <mail@jan-sosulski.de>"]
 keywords = [
