@@ -16,7 +16,7 @@ include = ["LICENSE"]
 [tool.poetry.dependencies]
 python = "^3.9"
 numpy = "^1"
-blockmatrix = { git = "https://github.com/jsosulski/blockmatrix.git", branch = "rework" }
+blockmatrix = "^0.3"
 scikit-learn = "^1"
 toeplitz = { version = "0.3.2", optional = true }
 mne = { version = "*", optional = true }
