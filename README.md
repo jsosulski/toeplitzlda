@@ -83,6 +83,12 @@ toep_cov = ToepTapLW(n_channels=your_n_channels)
 clf = LinearDiscriminantAnalysis(solver="lsqr", covariance_estimator=toep_cov)  # or eigen solver
 ```
 
+### Important prerequisites for the data
+To ensure ToeplitzLDA performs optimally, the following conditions should be met:
+- Baseline correction should be disabled.
+- If time intervals are used for the time dimension, they should be equally sized.
+- The data should be in _channel-prime_ order. For more details, see the FAQ section all the way down in this file.
+
 ## Development Setup
 
 We use a fortran compiler to provide speedups for solving block-Toeplitz linear equation
